@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "788275500167",
+    "project_id": "work-hours-tracker-9e02b",
+    "storage_bucket": "work-hours-tracker-9e02b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:788275500167:android:07e070854608a4ef561422",
+        "android_client_info": {
+          "package_name": "com.aistudio.workhourstracker.pxmkzq"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "788275500167-iiv79qtlv0n1lvtk5va1rn51mh7cna5k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.workhourstracker.pxmkzq",
+            "certificate_hash": "70bd5124bd286ef81a8e25c0a4a72cb378fcba00"
+          }
+        },
+        {
+          "client_id": "788275500167-ctn08ib956nejn685l78bkt36s48dmff.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4pMjctqlfCHuznWG4PxPDneWPf8xPs00"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "788275500167-ctn08ib956nejn685l78bkt36s48dmff.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
