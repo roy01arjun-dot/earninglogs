@@ -1,4 +1,4 @@
-﻿package com.example
+package com.example
 
 import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -61,6 +62,18 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.draw.clip
+import com.example.data.ShiftTimerState
+import com.example.ui.theme.AppColors
+import java.util.Locale
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -158,6 +171,20 @@ fun WorkLogApp(viewModel: WorkLogViewModel = viewModel()) {
     var editingLog by remember { mutableStateOf<WorkLogEntity?>(null) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
+
+    val timerState by viewModel.timerState.collectAsStateWithLifecycle()
+    val timerTick by viewModel.timerTick.collectAsStateWithLifecycle()
+
+    var initialHoursForDialog by remember { mutableStateOf<String?>(null) }
+    var initialWorkplaceForDialog by remember { mutableStateOf<String?>(null) }
+
+    val handleEndTimer: () -> Unit = {
+        val (hours, workplace) = viewModel.endShiftTimer()
+        initialHoursForDialog = ShiftTimerState.formatHoursForInput(hours)
+        initialWorkplaceForDialog = workplace
+        editingLog = null
+        showAddEditDialog = true
+    }
 
     val exportBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -302,90 +329,154 @@ fun WorkLogApp(viewModel: WorkLogViewModel = viewModel()) {
             }
         }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            Crossfade(
-                targetState = selectedTab,
-                label = "TabSwitchAnimation",
-                modifier = Modifier.fillMaxSize()
-            ) { tab ->
-                when (tab) {
-                    Tab.Overview.ordinal -> DashboardScreen(
-                        monthlySummary = monthlySummary,
-                        weeklySummary = weeklySummary,
-                        workplaceBreakdown = monthlyWorkplaceBreakdown,
-                        selectedWorkplaceFilter = selectedWorkplaceFilter,
-                        selectedMonth = selectedMonth,
-                        userSettings = userSettings,
-                        onSelectWorkplaceFilter = viewModel::selectWorkplaceFilter,
-                        onAddWorkplace = viewModel::addWorkplace,
-                        onRenameWorkplace = viewModel::renameWorkplace,
-                        onNavigateMonth = viewModel::navigateMonth,
-                        onJumpToCurrentMonth = viewModel::jumpToCurrentMonth,
-                        onAddLogClick = {
-                            editingLog = null
-                            showAddEditDialog = true
-                        },
-                        onEditLogClick = { log ->
-                            editingLog = log
-                            showAddEditDialog = true
-                        },
-                        onDeleteLogClick = viewModel::deleteLog,
-                        onTogglePaidClick = viewModel::togglePaidStatus,
-                        onPopulateSampleClick = viewModel::populateSampleData,
-                        onViewAllShiftsClick = { selectedTab = Tab.Shifts.ordinal },
-                        onViewWeeklyTabClick = { selectedTab = Tab.Weekly.ordinal }
-                    )
-
-                    Tab.Shifts.ordinal -> HistoryScreen(
-                        allLogs = allLogs,
-                        searchQuery = searchQuery,
-                        userSettings = userSettings,
-                        onSearchQueryChange = viewModel::setSearchQuery,
-                        onEditLogClick = { log ->
-                            editingLog = log
-                            showAddEditDialog = true
-                        },
-                        onDeleteLogClick = viewModel::deleteLog,
-                        onTogglePaidClick = viewModel::togglePaidStatus,
-                        onAddLogClick = {
-                            editingLog = null
-                            showAddEditDialog = true
+            // Global persistent mini-banner when timer is active and user is browsing other tabs
+            if (timerState.isRunning && selectedTab != Tab.Overview.ordinal) {
+                Surface(
+                    color = AppColors.card,
+                    border = BorderStroke(1.dp, AppColors.cardBorder),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(if (timerState.isPaused) AppColors.unpaid else AppColors.accent)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Shift Timer: ${timerState.formattedDuration(timerTick)} (~${String.format(Locale.US, "%.2f", timerState.currentElapsedHours(timerTick))}h)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppColors.textPrimary
+                            )
                         }
-                    )
+                        Button(
+                            onClick = handleEndTimer,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.accent),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Text("End & Log", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
 
-                    Tab.Weekly.ordinal -> WeeklySummaryScreen(
-                        weeklySummary = weeklySummary,
-                        selectedWeekStart = selectedWeekStart,
-                        userSettings = userSettings,
-                        onNavigateWeek = viewModel::navigateWeek,
-                        onJumpToCurrentWeek = viewModel::jumpToCurrentWeek,
-                        onAddLogClick = {
-                            editingLog = null
-                            showAddEditDialog = true
-                        },
-                        onEditLogClick = { log ->
-                            editingLog = log
-                            showAddEditDialog = true
-                        },
-                        onDeleteLogClick = viewModel::deleteLog,
-                        onExportPayrollClick = { showExportDialog = true }
-                    )
+            Box(modifier = Modifier.fillMaxSize().weight(1f)) {
+                Crossfade(
+                    targetState = selectedTab,
+                    label = "TabSwitchAnimation",
+                    modifier = Modifier.fillMaxSize()
+                ) { tab ->
+                    when (tab) {
+                        Tab.Overview.ordinal -> DashboardScreen(
+                            monthlySummary = monthlySummary,
+                            weeklySummary = weeklySummary,
+                            workplaceBreakdown = monthlyWorkplaceBreakdown,
+                            selectedWorkplaceFilter = selectedWorkplaceFilter,
+                            selectedMonth = selectedMonth,
+                            userSettings = userSettings,
+                            onSelectWorkplaceFilter = viewModel::selectWorkplaceFilter,
+                            onAddWorkplace = viewModel::addWorkplace,
+                            onRenameWorkplace = viewModel::renameWorkplace,
+                            onNavigateMonth = viewModel::navigateMonth,
+                            onJumpToCurrentMonth = viewModel::jumpToCurrentMonth,
+                            onAddLogClick = {
+                                editingLog = null
+                                initialHoursForDialog = null
+                                initialWorkplaceForDialog = null
+                                showAddEditDialog = true
+                            },
+                            onEditLogClick = { log ->
+                                editingLog = log
+                                initialHoursForDialog = null
+                                initialWorkplaceForDialog = null
+                                showAddEditDialog = true
+                            },
+                            onDeleteLogClick = viewModel::deleteLog,
+                            onTogglePaidClick = viewModel::togglePaidStatus,
+                            onPopulateSampleClick = viewModel::populateSampleData,
+                            onViewAllShiftsClick = { selectedTab = Tab.Shifts.ordinal },
+                            onViewWeeklyTabClick = { selectedTab = Tab.Weekly.ordinal },
+                            timerState = timerState,
+                            currentTick = timerTick,
+                            onStartTimer = viewModel::startShiftTimer,
+                            onPauseTimer = viewModel::pauseShiftTimer,
+                            onResumeTimer = viewModel::resumeShiftTimer,
+                            onResetTimer = viewModel::resetShiftTimer,
+                            onEndTimer = handleEndTimer
+                        )
 
-                    Tab.Account.ordinal -> AccountScreen(
-                        authState = authState,
-                        userSettings = userSettings,
-                        syncStatus = syncStatus,
-                        isOnline = isOnline,
-                        onSignIn = { viewModel.signInWithGoogle(context) },
-                        onSignOut = { wipe -> viewModel.signOut(wipe) },
-                        onSyncNow = viewModel::syncNow,
-                        onRestore = viewModel::restoreFromCloud,
-                        onToggleAutoSync = viewModel::toggleAutoCloudSync
-                    )
+                        Tab.Shifts.ordinal -> HistoryScreen(
+                            allLogs = allLogs,
+                            searchQuery = searchQuery,
+                            userSettings = userSettings,
+                            onSearchQueryChange = viewModel::setSearchQuery,
+                            onEditLogClick = { log ->
+                                editingLog = log
+                                initialHoursForDialog = null
+                                initialWorkplaceForDialog = null
+                                showAddEditDialog = true
+                            },
+                            onDeleteLogClick = viewModel::deleteLog,
+                            onTogglePaidClick = viewModel::togglePaidStatus,
+                            onAddLogClick = {
+                                editingLog = null
+                                initialHoursForDialog = null
+                                initialWorkplaceForDialog = null
+                                showAddEditDialog = true
+                            }
+                        )
+
+                        Tab.Weekly.ordinal -> WeeklySummaryScreen(
+                            weeklySummary = weeklySummary,
+                            selectedWeekStart = selectedWeekStart,
+                            userSettings = userSettings,
+                            onNavigateWeek = viewModel::navigateWeek,
+                            onJumpToCurrentWeek = viewModel::jumpToCurrentWeek,
+                            onAddLogClick = {
+                                editingLog = null
+                                initialHoursForDialog = null
+                                initialWorkplaceForDialog = null
+                                showAddEditDialog = true
+                            },
+                            onEditLogClick = { log ->
+                                editingLog = log
+                                initialHoursForDialog = null
+                                initialWorkplaceForDialog = null
+                                showAddEditDialog = true
+                            },
+                            onDeleteLogClick = viewModel::deleteLog,
+                            onExportPayrollClick = { showExportDialog = true }
+                        )
+
+                        Tab.Account.ordinal -> AccountScreen(
+                            authState = authState,
+                            userSettings = userSettings,
+                            syncStatus = syncStatus,
+                            isOnline = isOnline,
+                            onSignIn = { viewModel.signInWithGoogle(context) },
+                            onSignOut = { wipe -> viewModel.signOut(wipe) },
+                            onSyncNow = viewModel::syncNow,
+                            onRestore = viewModel::restoreFromCloud,
+                            onToggleAutoSync = viewModel::toggleAutoCloudSync
+                        )
+                    }
                 }
             }
         }
@@ -395,10 +486,18 @@ fun WorkLogApp(viewModel: WorkLogViewModel = viewModel()) {
         AddEditLogDialog(
             initialLog = editingLog,
             userSettings = userSettings,
-            onDismiss = { showAddEditDialog = false },
+            initialNormalHours = initialHoursForDialog,
+            initialWorkplace = initialWorkplaceForDialog,
+            onDismiss = {
+                showAddEditDialog = false
+                initialHoursForDialog = null
+                initialWorkplaceForDialog = null
+            },
             onSave = { log ->
                 if (log.id == 0) viewModel.addLog(log) else viewModel.updateLog(log)
                 showAddEditDialog = false
+                initialHoursForDialog = null
+                initialWorkplaceForDialog = null
             }
         )
     }

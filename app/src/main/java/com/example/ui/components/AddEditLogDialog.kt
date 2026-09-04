@@ -1,4 +1,4 @@
-﻿package com.example.ui.components
+package com.example.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -88,19 +88,50 @@ import kotlin.math.min
 fun AddEditLogDialog(
     initialLog: WorkLogEntity?,
     userSettings: UserSettings,
+    initialNormalHours: String? = null,
+    initialWorkplace: String? = null,
     onDismiss: () -> Unit,
     onSave: (WorkLogEntity) -> Unit
 ) {
     var dateStr by remember { mutableStateOf(initialLog?.date ?: DateUtils.todayString()) }
-    var hoursInput by remember { mutableStateOf(initialLog?.hoursWorked?.toString() ?: "8.0") }
+    var normalHoursInput by remember {
+        mutableStateOf(
+            if (initialLog != null) {
+                if (initialLog.regularHours > 0.0) {
+                    if (initialLog.regularHours == initialLog.regularHours.toLong().toDouble()) {
+                        initialLog.regularHours.toLong().toString()
+                    } else {
+                        String.format(java.util.Locale.US, "%.2f", initialLog.regularHours).trimEnd('0').trimEnd('.')
+                    }
+                } else initialLog.hoursWorked.toString()
+            } else {
+                initialNormalHours ?: ""
+            }
+        )
+    }
+    var overtimeHoursInput by remember {
+        mutableStateOf(
+            if (initialLog != null) {
+                if (initialLog.overtimeHours > 0.0) {
+                    if (initialLog.overtimeHours == initialLog.overtimeHours.toLong().toDouble()) {
+                        initialLog.overtimeHours.toLong().toString()
+                    } else {
+                        String.format(java.util.Locale.US, "%.2f", initialLog.overtimeHours).trimEnd('0').trimEnd('.')
+                    }
+                } else "0"
+            } else {
+                "0"
+            }
+        )
+    }
     var breakInput by remember { mutableStateOf(initialLog?.breakMinutes?.toString() ?: "0") }
     var wageType by remember { mutableStateOf(initialLog?.wageType ?: userSettings.defaultWageType) }
     var wageRateInput by remember { mutableStateOf(initialLog?.wageRate?.toString() ?: userSettings.defaultWageRate.toString()) }
-    var overtimeThresholdInput by remember { mutableStateOf(initialLog?.overtimeThresholdHours?.toString() ?: userSettings.defaultOvertimeThreshold.toString()) }
     var overtimeMultiplierInput by remember { mutableStateOf(initialLog?.overtimeMultiplier?.toString() ?: userSettings.defaultOvertimeMultiplier.toString()) }
     var note by remember { mutableStateOf(initialLog?.note ?: "") }
     var isPaid by remember { mutableStateOf(initialLog?.isPaid ?: false) }
-    var selectedWorkplace by remember { mutableStateOf(initialLog?.workplace ?: userSettings.workplaces.firstOrNull() ?: "Main Workplace") }
+    var selectedWorkplace by remember { mutableStateOf(initialLog?.workplace ?: initialWorkplace ?: userSettings.workplaces.firstOrNull() ?: "Main Workplace") }
+    var hasAttemptedSave by remember { mutableStateOf(false) }
     
     var showNewWorkplaceDialog by remember { mutableStateOf(false) }
     var newWorkplaceInput by remember { mutableStateOf("") }
@@ -111,23 +142,22 @@ fun AddEditLogDialog(
     val breakPresets = listOf(0 to "0m", 30 to "30m", 60 to "60m")
 
     // Parsed values
-    val hoursWorked = hoursInput.toDoubleOrNull() ?: 0.0
+    val normalHours = normalHoursInput.toDoubleOrNull() ?: 0.0
+    val overtimeHours = overtimeHoursInput.toDoubleOrNull() ?: 0.0
     val breakMinutes = breakInput.toIntOrNull() ?: 0
     val wageRate = wageRateInput.toDoubleOrNull() ?: 0.0
-    val overtimeThreshold = overtimeThresholdInput.toDoubleOrNull() ?: 8.0
     val overtimeMultiplier = overtimeMultiplierInput.toDoubleOrNull() ?: 1.5
 
     // Calculated live preview
-    val netHours = max(0.0, hoursWorked - (breakMinutes / 60.0))
-    val regularHours = min(netHours, overtimeThreshold)
-    val overtimeHours = max(0.0, netHours - overtimeThreshold)
+    val totalWorkHours = normalHours + overtimeHours
+    val netHours = max(0.0, totalWorkHours - (breakMinutes / 60.0))
 
     val effectiveHourlyRate = when (wageType) {
         WageType.HOURLY -> wageRate
-        WageType.DAILY -> if (overtimeThreshold > 0) wageRate / overtimeThreshold else 0.0
+        WageType.DAILY -> if (normalHours > 0) wageRate / normalHours else wageRate / 8.0
     }
     val regularPay = when (wageType) {
-        WageType.HOURLY -> regularHours * wageRate
+        WageType.HOURLY -> normalHours * wageRate
         WageType.DAILY -> wageRate
     }
     val overtimePay = overtimeHours * (effectiveHourlyRate * overtimeMultiplier)
@@ -172,11 +202,20 @@ fun AddEditLogDialog(
                             fontWeight = FontWeight.Bold,
                             color = AppColors.textPrimary
                         )
-                        Text(
-                            text = "Calculate daily wage and overtime",
-                            fontSize = 12.sp,
-                            color = AppColors.textSecondary
-                        )
+                        if (initialNormalHours != null) {
+                            Text(
+                                text = "⏱️ Hours automatically calculated from timer",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppColors.accent
+                            )
+                        } else {
+                            Text(
+                                text = "Calculate daily wage and overtime",
+                                fontSize = 12.sp,
+                                color = AppColors.textSecondary
+                            )
+                        }
                     }
                     IconButton(
                         onClick = onDismiss,
@@ -330,36 +369,40 @@ fun AddEditLogDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // 4. Hours Worked & Quick Presets
+                // 4. Normal Working Hours (Required - user enters this)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Working Hours",
+                        text = "Normal Working Hours *",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppColors.textPrimary
                     )
                     Text(
-                        text = "Tap preset or type below",
+                        text = "User entered normal hours",
                         fontSize = 11.sp,
                         color = AppColors.textSecondary
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Hour Presets Row
+                // Normal Hour Presets Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     hourPresets.forEach { preset ->
+                        val cleanPreset = preset.substringBefore(".")
                         QuickChip(
-                            label = "${preset.substringBefore(".")}h",
-                            selected = hoursInput == preset,
-                            onClick = { hoursInput = preset },
+                            label = "${cleanPreset}h",
+                            selected = normalHoursInput == preset || normalHoursInput == cleanPreset,
+                            onClick = {
+                                normalHoursInput = preset
+                                hasAttemptedSave = false
+                            },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -372,13 +415,20 @@ fun AddEditLogDialog(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     OutlinedTextField(
-                        value = hoursInput,
-                        onValueChange = { hoursInput = it },
-                        label = { Text("Total Hours", fontSize = 12.sp) },
+                        value = normalHoursInput,
+                        onValueChange = {
+                            normalHoursInput = it
+                            hasAttemptedSave = false
+                        },
+                        label = { Text("Normal Hours (Required)", fontSize = 12.sp) },
+                        placeholder = { Text("e.g. 8.0", fontSize = 12.sp) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
+                        isError = hasAttemptedSave && (normalHoursInput.isBlank() || normalHours <= 0.0),
                         shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("normal_hours_input"),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = AppColors.accent,
                             unfocusedBorderColor = AppColors.cardBorder,
@@ -394,7 +444,103 @@ fun AddEditLogDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("break_input"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AppColors.accent,
+                            unfocusedBorderColor = AppColors.cardBorder,
+                            focusedContainerColor = AppColors.card.copy(alpha = 0.4f),
+                            unfocusedContainerColor = AppColors.card.copy(alpha = 0.4f)
+                        )
+                    )
+                }
+
+                if (hasAttemptedSave && (normalHoursInput.isBlank() || normalHours <= 0.0)) {
+                    Text(
+                        text = "Please enter your normal working hours.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // 5. Overtime Hours (Default to 0)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Overtime Hours (Default: 0)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.textPrimary
+                    )
+                    Text(
+                        text = if (overtimeHours > 0) "${String.format(java.util.Locale.US, "%.1f", overtimeHours)}h @ ${overtimeMultiplier}x rate" else "0h overtime by default",
+                        fontSize = 11.sp,
+                        fontWeight = if (overtimeHours > 0) FontWeight.Bold else FontWeight.Normal,
+                        color = if (overtimeHours > 0) AppColors.accent else AppColors.textSecondary
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Overtime Quick Options (0h, +1h, +2h, +3h)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val otOptions = listOf("0", "1.0", "2.0", "3.0")
+                    otOptions.forEach { otOpt ->
+                        val label = if (otOpt == "0") "0h (Default)" else "+${otOpt.substringBefore(".")}h"
+                        val isSel = overtimeHoursInput == otOpt || (otOpt == "0" && (overtimeHoursInput.toDoubleOrNull() ?: 0.0) == 0.0)
+                        QuickChip(
+                            label = label,
+                            selected = isSel,
+                            onClick = { overtimeHoursInput = otOpt },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = overtimeHoursInput,
+                        onValueChange = { overtimeHoursInput = it },
+                        label = { Text("Overtime Hours", fontSize = 12.sp) },
+                        placeholder = { Text("0", fontSize = 12.sp) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("overtime_hours_input"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AppColors.accent,
+                            unfocusedBorderColor = AppColors.cardBorder,
+                            focusedContainerColor = AppColors.card.copy(alpha = 0.4f),
+                            unfocusedContainerColor = AppColors.card.copy(alpha = 0.4f)
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = overtimeMultiplierInput,
+                        onValueChange = { overtimeMultiplierInput = it },
+                        label = { Text("OT Multiplier", fontSize = 12.sp) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("ot_multiplier_input"),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = AppColors.accent,
                             unfocusedBorderColor = AppColors.cardBorder,
@@ -406,43 +552,24 @@ fun AddEditLogDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // 5. Hourly Rate & Overtime Multiplier
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedTextField(
-                        value = wageRateInput,
-                        onValueChange = { wageRateInput = it },
-                        label = { Text("Hourly Rate ($currency)", fontSize = 12.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AppColors.accent,
-                            unfocusedBorderColor = AppColors.cardBorder,
-                            focusedContainerColor = AppColors.card.copy(alpha = 0.4f),
-                            unfocusedContainerColor = AppColors.card.copy(alpha = 0.4f)
-                        )
+                // 6. Hourly / Daily Rate
+                OutlinedTextField(
+                    value = wageRateInput,
+                    onValueChange = { wageRateInput = it },
+                    label = { Text("Wage Rate ($currency)", fontSize = 12.sp) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("wage_rate_input"),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AppColors.accent,
+                        unfocusedBorderColor = AppColors.cardBorder,
+                        focusedContainerColor = AppColors.card.copy(alpha = 0.4f),
+                        unfocusedContainerColor = AppColors.card.copy(alpha = 0.4f)
                     )
-
-                    OutlinedTextField(
-                        value = overtimeThresholdInput,
-                        onValueChange = { overtimeThresholdInput = it },
-                        label = { Text("OT Threshold (hrs)", fontSize = 12.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.weight(1f),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AppColors.accent,
-                            unfocusedBorderColor = AppColors.cardBorder,
-                            focusedContainerColor = AppColors.card.copy(alpha = 0.4f),
-                            unfocusedContainerColor = AppColors.card.copy(alpha = 0.4f)
-                        )
-                    )
-                }
+                )
 
                 Spacer(modifier = Modifier.height(14.dp))
 
@@ -522,14 +649,20 @@ fun AddEditLogDialog(
 
                     Button(
                         onClick = {
+                            if (normalHoursInput.isBlank() || normalHours <= 0.0) {
+                                hasAttemptedSave = true
+                                return@Button
+                            }
+                            val totalShiftHours = normalHours + overtimeHours + (breakMinutes / 60.0)
+                            val threshold = if (normalHours > 0) normalHours else userSettings.defaultOvertimeThreshold
                             val entity = WorkLogEntity(
                                 id = initialLog?.id ?: 0,
                                 date = dateStr,
-                                hoursWorked = hoursWorked,
+                                hoursWorked = totalShiftHours,
                                 breakMinutes = breakMinutes,
                                 wageType = wageType,
                                 wageRate = wageRate,
-                                overtimeThresholdHours = overtimeThreshold,
+                                overtimeThresholdHours = threshold,
                                 overtimeMultiplier = overtimeMultiplier,
                                 note = note.trim(),
                                 isPaid = isPaid,

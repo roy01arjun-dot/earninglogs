@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.DatabaseBackupManager
+import com.example.data.ShiftTimerState
 import com.example.data.UserSettings
 import com.example.data.UserSettingsRepository
 import com.example.data.WorkLogDatabase
@@ -147,8 +148,57 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
     private val _authErrorMessage = MutableStateFlow<String?>(null)
     val authErrorMessage: StateFlow<String?> = _authErrorMessage.asStateFlow()
 
+    // --- Shift Timer ---
+
+    private val timerPrefs = application.getSharedPreferences("work_shift_timer_prefs", Context.MODE_PRIVATE)
+
+    private fun loadTimerState(): ShiftTimerState {
+        val isRunning = timerPrefs.getBoolean("timer_is_running", false)
+        val isPaused = timerPrefs.getBoolean("timer_is_paused", false)
+        val startTime = timerPrefs.getLong("timer_start_time", 0L)
+        val accumulated = timerPrefs.getLong("timer_accumulated", 0L)
+        val workplace = timerPrefs.getString("timer_workplace", "Main Workplace") ?: "Main Workplace"
+        val startFormatted = timerPrefs.getString("timer_start_formatted", "") ?: ""
+        return ShiftTimerState(
+            isRunning = isRunning,
+            isPaused = isPaused,
+            startTimeMillis = startTime,
+            accumulatedDurationMillis = accumulated,
+            workplace = workplace,
+            startFormattedTime = startFormatted
+        )
+    }
+
+    private fun persistTimerState(state: ShiftTimerState) {
+        timerPrefs.edit().apply {
+            putBoolean("timer_is_running", state.isRunning)
+            putBoolean("timer_is_paused", state.isPaused)
+            putLong("timer_start_time", state.startTimeMillis)
+            putLong("timer_accumulated", state.accumulatedDurationMillis)
+            putString("timer_workplace", state.workplace)
+            putString("timer_start_formatted", state.startFormattedTime)
+            apply()
+        }
+    }
+
+    private val _timerState = MutableStateFlow(loadTimerState())
+    val timerState: StateFlow<ShiftTimerState> = _timerState.asStateFlow()
+
+    private val _timerTick = MutableStateFlow(System.currentTimeMillis())
+    val timerTick: StateFlow<Long> = _timerTick.asStateFlow()
+
     init {
         SyncWorker.enqueuePeriodic(application)
+
+        // Ticker to drive UI refresh every second while timer is running
+        viewModelScope.launch {
+            while (true) {
+                if (_timerState.value.isRunning && !_timerState.value.isPaused) {
+                    _timerTick.value = System.currentTimeMillis()
+                }
+                kotlinx.coroutines.delay(1000)
+            }
+        }
 
         // Coming back online is the natural moment to flush anything queued.
         viewModelScope.launch {
@@ -482,6 +532,70 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
 
     /** Verifies against the stored salted hash. There is no master PIN. */
     fun verifySecurityPin(inputPin: String): Boolean = repository.verifyPin(inputPin)
+
+    // --- Shift Timer Controls ---
+
+    fun startShiftTimer(workplace: String = "Main Workplace") {
+        val now = System.currentTimeMillis()
+        val newState = ShiftTimerState(
+            isRunning = true,
+            isPaused = false,
+            startTimeMillis = now,
+            accumulatedDurationMillis = 0L,
+            workplace = workplace.ifBlank { "Main Workplace" },
+            startFormattedTime = ShiftTimerState.formatTimestamp(now)
+        )
+        _timerState.value = newState
+        persistTimerState(newState)
+        _timerTick.value = now
+    }
+
+    fun pauseShiftTimer() {
+        val current = _timerState.value
+        if (!current.isRunning || current.isPaused) return
+        val now = System.currentTimeMillis()
+        val totalAccumulated = current.accumulatedDurationMillis + (now - current.startTimeMillis).coerceAtLeast(0L)
+        val newState = current.copy(
+            isPaused = true,
+            accumulatedDurationMillis = totalAccumulated,
+            startTimeMillis = 0L
+        )
+        _timerState.value = newState
+        persistTimerState(newState)
+        _timerTick.value = now
+    }
+
+    fun resumeShiftTimer() {
+        val current = _timerState.value
+        if (!current.isRunning || !current.isPaused) return
+        val now = System.currentTimeMillis()
+        val newState = current.copy(
+            isPaused = false,
+            startTimeMillis = now
+        )
+        _timerState.value = newState
+        persistTimerState(newState)
+        _timerTick.value = now
+    }
+
+    fun resetShiftTimer() {
+        val newState = ShiftTimerState()
+        _timerState.value = newState
+        persistTimerState(newState)
+        _timerTick.value = System.currentTimeMillis()
+    }
+
+    /**
+     * Stops the timer, resets state, and returns the calculated total hours and workplace.
+     */
+    fun endShiftTimer(): Pair<Double, String> {
+        val current = _timerState.value
+        val now = System.currentTimeMillis()
+        val calculatedHours = current.currentElapsedHours(now)
+        val wp = current.workplace
+        resetShiftTimer()
+        return Pair(calculatedHours, wp)
+    }
 
     // --- Local file backup ---
 

@@ -1,4 +1,4 @@
-﻿package com.example.ui.screens
+package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -77,12 +77,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AppColors
+import com.example.data.ShiftTimerState
 import com.example.data.UserSettings
 import com.example.data.WorkLogEntity
 import com.example.ui.MonthlyPayrollSummary
 import com.example.ui.WeeklyPayrollSummary
 import com.example.ui.WorkplaceSummary
 import com.example.ui.components.MonthlyChartCanvas
+import com.example.ui.components.ShiftTimerCard
 import com.example.util.CurrencyUtils
 import com.example.util.DateUtils
 import java.time.LocalDate
@@ -108,6 +110,13 @@ fun DashboardScreen(
     onPopulateSampleClick: () -> Unit,
     onViewAllShiftsClick: () -> Unit = {},
     onViewWeeklyTabClick: () -> Unit = {},
+    timerState: ShiftTimerState? = null,
+    currentTick: Long = System.currentTimeMillis(),
+    onStartTimer: (String) -> Unit = {},
+    onPauseTimer: () -> Unit = {},
+    onResumeTimer: () -> Unit = {},
+    onResetTimer: () -> Unit = {},
+    onEndTimer: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddWorkplaceDialog by remember { mutableStateOf(false) }
@@ -218,7 +227,23 @@ fun DashboardScreen(
             }
         }
 
-        // 2. CURRENT WEEKLY EARNINGS CARD
+        // 2. Work Shift Timer Card (Live tracking & automatic total hour calculation)
+        if (timerState != null) {
+            item {
+                ShiftTimerCard(
+                    timerState = timerState,
+                    currentTick = currentTick,
+                    workplaces = userSettings.workplaces,
+                    onStartTimer = onStartTimer,
+                    onPauseTimer = onPauseTimer,
+                    onResumeTimer = onResumeTimer,
+                    onResetTimer = onResetTimer,
+                    onEndTimer = onEndTimer
+                )
+            }
+        }
+
+        // 3. CURRENT WEEKLY EARNINGS CARD
         if (weeklySummary != null) {
             item {
                 CurrentWeeklyEarningsCard(
