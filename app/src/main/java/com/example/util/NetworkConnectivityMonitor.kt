@@ -9,54 +9,50 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import java.util.concurrent.ConcurrentHashMap
 
-class NetworkConnectivityMonitor(private val context: Context) {
+/**
+ * Online = at least one network with validated internet access.
+ *
+ * Bugs fixed: `onAvailable` reported online before the network was validated (captive portals),
+ * `onCapabilitiesChanged` of one network could flip the app offline while another network was
+ * still connected, and `onLost` re-read a possibly stale active network.
+ */
+class NetworkConnectivityMonitor(context: Context) {
 
     private val connectivityManager =
-        context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
 
     val isOnlineFlow: Flow<Boolean> = callbackFlow {
-        val initialStatus = isCurrentlyOnline()
-        trySend(initialStatus)
-
+        val validated = ConcurrentHashMap.newKeySet<Network>()
         val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                trySend(true)
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                if (caps.hasInternet()) validated.add(network) else validated.remove(network)
+                trySend(validated.isNotEmpty())
             }
 
             override fun onLost(network: Network) {
-                trySend(isCurrentlyOnline())
-            }
-
-            override fun onCapabilitiesChanged(
-                network: Network,
-                networkCapabilities: NetworkCapabilities
-            ) {
-                val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                        networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                trySend(hasInternet)
+                validated.remove(network)
+                trySend(validated.isNotEmpty())
             }
         }
 
+        trySend(isCurrentlyOnline())
         val request = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
+        runCatching { connectivityManager?.registerNetworkCallback(request, callback) }
 
-        connectivityManager?.registerNetworkCallback(request, callback)
-
-        awaitClose {
-            try {
-                connectivityManager?.unregisterNetworkCallback(callback)
-            } catch (e: Exception) {
-                // Ignore if already unregistered
-            }
-        }
+        awaitClose { runCatching { connectivityManager?.unregisterNetworkCallback(callback) } }
     }.distinctUntilChanged()
 
     fun isCurrentlyOnline(): Boolean {
         val cm = connectivityManager ?: return false
-        val activeNetwork = cm.activeNetwork ?: return false
-        val capabilities = cm.getNetworkCapabilities(activeNetwork) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return false) ?: return false
+        return caps.hasInternet()
     }
+
+    private fun NetworkCapabilities.hasInternet() =
+        hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 }

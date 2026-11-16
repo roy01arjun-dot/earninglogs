@@ -50,6 +50,11 @@ data class ShiftTimerState(
             return String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
         }
 
+    /** Day the shift started, so a shift that runs past midnight is logged on the right date. */
+    val startDate: java.time.LocalDate
+        get() = if (startTimestamp > 0) Instant.ofEpochMilli(startTimestamp).atZone(ZoneId.systemDefault()).toLocalDate()
+        else java.time.LocalDate.now()
+
     val formattedStartTime: String
         get() = if (startTimestamp > 0) {
             try {
@@ -172,6 +177,13 @@ class ShiftTimerManager(
         _timerState.value = newState
     }
 
+    /** Elapsed hours (2 decimals) without stopping the timer. */
+    fun currentHours(): Double {
+        val ms = _timerState.value.totalElapsedMs
+        val rounded = round(ms / 3_600_000.0 * 100.0) / 100.0
+        return if (ms > 1000L && rounded == 0.0) 0.01 else rounded
+    }
+
     fun endTimer(): Double {
         val current = _timerState.value
         val totalMs = current.totalElapsedMs
@@ -184,7 +196,7 @@ class ShiftTimerManager(
         val rawHours = totalSeconds / 3600.0
         val rounded = round(rawHours * 100.0) / 100.0
         // Minimum decimal representation for very short test runs
-        return if (totalMs > 1000L && rounded == 0.0) 0.1 else rounded
+        return if (totalMs > 1000L && rounded == 0.0) 0.01 else rounded
     }
 
     private fun startTicker() {

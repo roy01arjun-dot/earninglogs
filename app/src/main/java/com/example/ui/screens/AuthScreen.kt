@@ -65,6 +65,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.heightIn
 import com.example.ui.components.AppCard
 import com.example.ui.components.ControlShape
 import com.example.ui.components.Spacing
@@ -85,7 +89,7 @@ fun AuthScreen(
     onContinueOffline: (() -> Unit)?,
     onClose: (() -> Unit)?
 ) {
-    val activity = LocalContext.current as? Activity
+    val activity = androidx.activity.compose.LocalActivity.current
     val focus = LocalFocusManager.current
     val status = AppTheme.status
 
@@ -252,6 +256,7 @@ fun AuthScreen(
                                 .padding(bottom = Spacing.md)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(if (isError) MaterialTheme.colorScheme.errorContainer else status.successContainer)
+                                .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Assertive }
                                 .padding(Spacing.md),
                             verticalAlignment = Alignment.Top
                         ) {
@@ -273,7 +278,7 @@ fun AuthScreen(
                         onClick = { submit() },
                         enabled = cloudAvailable && !busy && email.isNotBlank() && password.isNotBlank(),
                         shape = ControlShape,
-                        modifier = Modifier.fillMaxWidth().height(52.dp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
                     ) {
                         if (busy) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
@@ -300,7 +305,7 @@ fun AuthScreen(
                         },
                         enabled = cloudAvailable && !busy && activity != null,
                         shape = ControlShape,
-                        modifier = Modifier.fillMaxWidth().height(52.dp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
                     ) {
                         Icon(Icons.Outlined.AccountCircle, null)
                         Spacer(Modifier.width(Spacing.sm))

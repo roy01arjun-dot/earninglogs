@@ -1,6 +1,0 @@
-{
-  "name": "Earninglogs",
-  "description": "Track daily working hours, calculate overtime pay, view weekly earnings, and monitor monthly payroll progress.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

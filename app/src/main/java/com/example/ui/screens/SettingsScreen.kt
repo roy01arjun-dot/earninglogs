@@ -27,6 +27,8 @@ import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,7 +90,8 @@ fun SettingsScreen(
     var customCurrency by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf<String?>(null) }
 
-    fun num(s: String) = s.replace(",", "").trim().toDoubleOrNull()
+    // Locale-safe: "3,3" is 3.3 (the old code turned it into 33).
+    fun num(s: String) = com.example.util.NumberInput.parse(s)
 
     val rateV = num(rate)
     val thresholdV = num(threshold)
@@ -114,13 +117,27 @@ fun SettingsScreen(
     ) else null
     val dirty = updated != null && !updated.payrollEquals(settings)
 
-    BackHandler(onBack = onBack)
+    var confirmDiscard by remember { mutableStateOf(false) }
+    // Don't silently throw away unsaved changes on back.
+    BackHandler { if (dirty) confirmDiscard = true else onBack() }
+    if (confirmDiscard) {
+        ConfirmDialog(
+            title = "Discard changes?",
+            message = "Your changes to pay settings haven't been saved.",
+            confirmLabel = "Discard",
+            destructive = true,
+            onConfirm = onBack,
+            onDismiss = { confirmDiscard = false }
+        )
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = { if (dirty) confirmDiscard = true else onBack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
                 },
                 title = { Text("Pay & workplaces") },
                 actions = {
@@ -145,8 +162,8 @@ fun SettingsScreen(
             Label("Default pay")
             AppCard {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    SegmentedButton(wageType == WageType.HOURLY, { wageType = WageType.HOURLY }, SegmentedButtonDefaults.itemShape(0, 2)) { Text("Hourly") }
-                    SegmentedButton(wageType == WageType.DAILY, { wageType = WageType.DAILY }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("Daily") }
+                    SegmentedButton(wageType == WageType.HOURLY, { wageType = WageType.HOURLY }, SegmentedButtonDefaults.itemShape(0, 2)) { Text("Per hour") }
+                    SegmentedButton(wageType == WageType.DAILY, { wageType = WageType.DAILY }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("Per day") }
                 }
                 Spacer(Modifier.height(Spacing.md))
                 NumberField(
@@ -157,21 +174,20 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(Spacing.sm))
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    NumberField(
-                        threshold, { threshold = it }, label = "Overtime after", suffix = "h",
-                        error = if (thresholdV == null || thresholdV !in 0.5..24.0) "0.5 – 24" else null,
-                        modifier = Modifier.weight(1f)
-                    )
-                    NumberField(
-                        multiplier, { multiplier = it }, label = "Overtime rate", suffix = "×",
-                        error = if (multiplierV == null || multiplierV !in 1.0..5.0) "1 – 5" else null,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                NumberField(
+                    threshold, { threshold = it }, label = "Overtime starts after", suffix = "h per shift",
+                    error = if (thresholdV == null || thresholdV !in 0.5..24.0) "0.5 to 24" else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(Spacing.sm))
+                NumberField(
+                    multiplier, { multiplier = it }, label = "Overtime pay rate", suffix = "×",
+                    error = if (multiplierV == null || multiplierV !in 1.0..5.0) "1 to 5" else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
-            Label("Currency & goals")
+            Label("Currency, goal & tax")
             AppCard {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     CURRENCIES.forEach { c ->
@@ -184,27 +200,17 @@ fun SettingsScreen(
                     )
                 }
                 Spacer(Modifier.height(Spacing.md))
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    NumberField(
-                        goal, { goal = it }, label = "Monthly goal", prefix = currency,
-                        error = if (goalV == null || goalV < 0) "Invalid" else null,
-                        modifier = Modifier.weight(1.4f)
-                    )
-                    NumberField(
-                        tax, { tax = it }, label = "Tax", suffix = "%",
-                        error = if (taxV == null || taxV !in 0.0..100.0) "0 – 100" else null,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(Spacing.md))
-                Text("Pay period", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                NumberField(
+                    goal, { goal = it }, label = "Monthly earnings goal (0 = none)", prefix = currency,
+                    error = if (goalV == null || goalV < 0) "Enter 0 or more" else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(Spacing.sm))
-                val periods = listOf("WEEKLY" to "Weekly", "BIWEEKLY" to "Bi-weekly", "MONTHLY" to "Monthly")
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    periods.forEachIndexed { i, (key, label) ->
-                        SegmentedButton(payPeriod == key, { payPeriod = key }, SegmentedButtonDefaults.itemShape(i, periods.size)) { Text(label) }
-                    }
-                }
+                NumberField(
+                    tax, { tax = it }, label = "Tax withheld", suffix = "%",
+                    error = if (taxV == null || taxV !in 0.0..100.0) "0 to 100" else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             Label("Workplaces")
@@ -231,7 +237,14 @@ fun SettingsScreen(
                 )
             }
 
-            Label("Danger zone")
+            Button(
+                onClick = { updated?.let { onSave(it); onBack() } },
+                enabled = dirty,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+            ) { Text(if (valid) "Save changes" else "Fix the highlighted fields") }
+
+            Label("Delete shifts")
             AppCard(contentPadding = PaddingValues(0.dp)) {
                 SettingRow(Icons.Outlined.Today, "Clear today's shifts", tint = MaterialTheme.colorScheme.error, onClick = { confirm = "today" })
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -292,8 +305,8 @@ fun SettingsScreen(
 @Composable
 private fun Label(text: String) {
     Text(
-        text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
+        text,
+        style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = Spacing.xs, top = Spacing.sm)
     )

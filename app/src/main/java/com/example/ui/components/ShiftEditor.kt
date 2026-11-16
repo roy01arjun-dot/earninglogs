@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -22,10 +25,15 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -38,7 +46,6 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -46,12 +53,18 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -60,10 +73,10 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.data.UserSettings
 import com.example.data.WageType
 import com.example.data.WorkLogEntity
-import com.example.ui.theme.AppTheme
 import com.example.ui.theme.TABULAR
 import com.example.util.CurrencyUtils
 import com.example.util.DateUtils
+import com.example.util.NumberInput
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -71,7 +84,14 @@ import kotlin.math.max
 
 /**
  * Full-screen editor for creating or editing a shift.
- * @param prefillHours total hours from the shift timer, split into regular/overtime.
+ *
+ * Simplified: you enter the total time you worked; overtime is worked out automatically from
+ * "overtime after X hours". Pay details (rate, overtime) are pre-filled from settings and folded
+ * away unless you need them.
+ *
+ * Bug fixed: the old editor derived the overtime threshold from whatever you typed as "regular
+ * hours", so a daily-wage shift's overtime rate changed from shift to shift, and a long break could
+ * turn the whole shift into overtime. Input also survives screen rotation now (rememberSaveable).
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -80,86 +100,91 @@ fun ShiftEditor(
     settings: UserSettings,
     prefillHours: Double? = null,
     prefillWorkplace: String? = null,
+    prefillDate: String? = null,
     onDismiss: () -> Unit,
     onSave: (WorkLogEntity) -> Unit,
     onDelete: ((Int) -> Unit)? = null
 ) {
-    val status = AppTheme.status
     val isEdit = initialLog != null
+    val currency = settings.currencySymbol
 
-    var date by remember { mutableStateOf(initialLog?.date ?: DateUtils.todayString()) }
-    var workplace by remember {
+    var date by rememberSaveable { mutableStateOf(initialLog?.date ?: prefillDate ?: DateUtils.todayString()) }
+    var workplace by rememberSaveable {
         mutableStateOf(initialLog?.workplace ?: prefillWorkplace ?: settings.workplaces.firstOrNull() ?: "Main Workplace")
     }
-    var regularInput by remember {
-        mutableStateOf(
-            when {
-                initialLog != null -> (initialLog.regularHours + initialLog.breakMinutes / 60.0).asPlain()
-                prefillHours != null -> minOf(prefillHours, settings.defaultOvertimeThreshold).asPlain()
-                else -> settings.defaultOvertimeThreshold.asPlain()
-            }
-        )
+    var hoursInput by rememberSaveable {
+        mutableStateOf((initialLog?.hoursWorked ?: prefillHours ?: settings.defaultOvertimeThreshold).asPlain())
     }
-    var overtimeInput by remember {
-        mutableStateOf(
-            when {
-                initialLog != null -> initialLog.overtimeHours.asPlain()
-                prefillHours != null -> max(0.0, prefillHours - settings.defaultOvertimeThreshold).asPlain()
-                else -> "0"
-            }
-        )
+    var breakMin by rememberSaveable { mutableIntStateOf(initialLog?.breakMinutes ?: 0) }
+    var customBreak by rememberSaveable { mutableStateOf(breakMin !in BREAK_PRESETS) }
+    var breakInput by rememberSaveable { mutableStateOf(breakMin.toString()) }
+    var wageTypeName by rememberSaveable { mutableStateOf((initialLog?.wageType ?: settings.defaultWageType).name) }
+    val wageType = WageType.valueOf(wageTypeName)
+    var rateInput by rememberSaveable { mutableStateOf((initialLog?.wageRate ?: settings.defaultWageRate).asPlain()) }
+    var thresholdInput by rememberSaveable {
+        mutableStateOf((initialLog?.overtimeThresholdHours ?: settings.defaultOvertimeThreshold).asPlain())
     }
-    var breakInput by remember { mutableStateOf((initialLog?.breakMinutes ?: 0).toString()) }
-    var wageType by remember { mutableStateOf(initialLog?.wageType ?: settings.defaultWageType) }
-    var rateInput by remember { mutableStateOf((initialLog?.wageRate ?: settings.defaultWageRate).asPlain()) }
-    var multiplierInput by remember {
+    var multiplierInput by rememberSaveable {
         mutableStateOf((initialLog?.overtimeMultiplier ?: settings.defaultOvertimeMultiplier).asPlain())
     }
-    var note by remember { mutableStateOf(initialLog?.note ?: "") }
-    var isPaid by remember { mutableStateOf(initialLog?.isPaid ?: false) }
+    var note by rememberSaveable { mutableStateOf(initialLog?.note ?: "") }
+    var isPaid by rememberSaveable { mutableStateOf(initialLog?.isPaid ?: false) }
+    var showPayDetails by rememberSaveable { mutableStateOf(false) }
 
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showAddWorkplace by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
-    var attemptedSave by remember { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showAddWorkplace by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var attemptedSave by rememberSaveable { mutableStateOf(false) }
 
-    // ---- parsed values & live preview (same maths as WorkLogEntity) ----
-    val regular = regularInput.replace(',', '.').toDoubleOrNull()
-    val overtime = overtimeInput.replace(',', '.').toDoubleOrNull() ?: 0.0
-    val breakMin = breakInput.toIntOrNull() ?: 0
-    val rate = rateInput.replace(",", "").toDoubleOrNull()
-    val multiplier = multiplierInput.replace(',', '.').toDoubleOrNull() ?: 1.5
+    // ---- parse & validate
+    val hours = NumberInput.parse(hoursInput)
+    val effectiveBreak = if (customBreak) breakInput.toIntOrNull() else breakMin
+    val rate = NumberInput.parse(rateInput)
+    val threshold = NumberInput.parse(thresholdInput)
+    val multiplier = NumberInput.parse(multiplierInput)
 
-    val regularError = when {
-        regular == null -> "Enter hours"
-        regular < 0 || regular > 24 -> "0 – 24 hours"
+    val hoursError = when {
+        hours == null -> "Enter the hours you worked"
+        hours <= 0 || hours > 24 -> "Enter between 0 and 24 hours"
+        else -> null
+    }
+    val breakError = when {
+        effectiveBreak == null -> "Enter minutes"
+        effectiveBreak < 0 || effectiveBreak > 600 -> "0 to 600 minutes"
+        hours != null && effectiveBreak / 60.0 >= hours -> "Break is longer than the shift"
         else -> null
     }
     val rateError = when {
-        rate == null -> "Enter a rate"
-        rate < 0 -> "Must be positive"
+        rate == null -> "Enter your pay rate"
+        rate < 0 -> "Can't be negative"
         else -> null
     }
-    val overtimeError = if (overtime < 0 || overtime > 24) "0 – 24 hours" else null
-    val breakError = if (breakMin < 0 || breakMin > 600) "0 – 600 min" else null
-    val valid = regularError == null && rateError == null && overtimeError == null && breakError == null
+    val thresholdError = if (threshold == null || threshold < 0.5 || threshold > 24) "0.5 to 24 hours" else null
+    val multiplierError = if (multiplier == null || multiplier < 1 || multiplier > 5) "1 to 5" else null
+    val payDetailsInvalid = rateError != null || thresholdError != null || multiplierError != null
+    val valid = hoursError == null && breakError == null && !payDetailsInvalid
 
     val draft = WorkLogEntity(
         id = initialLog?.id ?: 0,
         uuid = initialLog?.uuid ?: java.util.UUID.randomUUID().toString(),
         date = date,
-        hoursWorked = (regular ?: 0.0) + overtime,
-        breakMinutes = breakMin,
+        hoursWorked = hours ?: 0.0,
+        breakMinutes = effectiveBreak ?: 0,
         wageType = wageType,
         wageRate = rate ?: 0.0,
-        overtimeThresholdHours = max(0.0, (regular ?: 0.0) - breakMin / 60.0),
-        overtimeMultiplier = multiplier,
+        overtimeThresholdHours = threshold ?: settings.defaultOvertimeThreshold,
+        overtimeMultiplier = multiplier ?: settings.defaultOvertimeMultiplier,
         note = note.trim(),
         isPaid = isPaid,
         workplace = workplace.trim().ifEmpty { "Main Workplace" },
         updatedAt = initialLog?.updatedAt ?: System.currentTimeMillis()
     )
-    val currency = settings.currencySymbol
+
+    fun trySave() {
+        attemptedSave = true
+        if (payDetailsInvalid) showPayDetails = true // never hide the field that has the error
+        if (valid) onSave(draft)
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -169,48 +194,42 @@ fun ShiftEditor(
             topBar = {
                 TopAppBar(
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close") }
+                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close without saving") }
                     },
-                    title = { Text(if (isEdit) "Edit shift" else "New shift") },
-                    actions = {
-                        TextButton(
-                            onClick = {
-                                attemptedSave = true
-                                if (valid) onSave(draft)
-                            }
-                        ) { Text("Save", fontWeight = FontWeight.SemiBold) }
-                    },
+                    title = { Text(if (isEdit) "Edit shift" else "Log a shift") },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
                 )
             },
             bottomBar = {
-                Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                Surface(color = MaterialTheme.colorScheme.surface) {
                     Column {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Row(
-                            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = Spacing.screen, vertical = Spacing.md),
+                            Modifier.fillMaxWidth().navigationBarsPadding().imePadding()
+                                .padding(horizontal = Spacing.screen, vertical = Spacing.md),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Estimated pay", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(
+                                Modifier.weight(1f).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
+                            ) {
+                                Text("You'll earn", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(
                                     CurrencyUtils.formatCurrency(draft.totalPay, currency),
                                     style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = TABULAR)
                                 )
-                                Text(
-                                    buildString {
-                                        append("${draft.netHoursWorked.asHours()} worked")
-                                        if (draft.overtimeHours > 0) append(" · ${draft.overtimeHours.asHours()} overtime")
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                if (draft.overtimeHours > 0) {
+                                    Text(
+                                        "Includes ${draft.overtimeHours.asHours()} overtime",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                             Button(
-                                onClick = { attemptedSave = true; if (valid) onSave(draft) },
+                                onClick = ::trySave,
                                 shape = ControlShape,
-                                modifier = Modifier.height(48.dp)
-                            ) { Text(if (isEdit) "Save changes" else "Add shift") }
+                                modifier = Modifier.heightIn(min = ButtonMinHeight)
+                            ) { Text(if (isEdit) "Save changes" else "Save shift") }
                         }
                     }
                 }
@@ -221,32 +240,30 @@ fun ShiftEditor(
                 Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .imePadding()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.screen, vertical = Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                verticalArrangement = Arrangement.spacedBy(Spacing.lg)
             ) {
-                // ---- When & where
-                AppCard {
-                    FieldLabel("Date")
+                // ---- Date
+                Field("Date") {
                     val today = DateUtils.todayString()
                     val yesterday = DateUtils.formatDate(LocalDate.now().minusDays(1))
+                    val other = date != today && date != yesterday
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         FilterChip(selected = date == today, onClick = { date = today }, label = { Text("Today") })
                         FilterChip(selected = date == yesterday, onClick = { date = yesterday }, label = { Text("Yesterday") })
                         FilterChip(
-                            selected = date != today && date != yesterday,
+                            selected = other,
                             onClick = { showDatePicker = true },
                             leadingIcon = { Icon(Icons.Default.CalendarMonth, null, Modifier.size(18.dp)) },
-                            label = { Text(if (date != today && date != yesterday) DateUtils.formatDisplayDate(date) else "Pick date") }
+                            label = { Text(if (other) DateUtils.formatDisplayDate(date) else "Other date") }
                         )
                     }
-                    Spacer(Modifier.height(Spacing.md))
-                    FieldLabel("Workplace")
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                        verticalArrangement = Arrangement.spacedBy(0.dp)
-                    ) {
+                }
+
+                // ---- Workplace
+                Field("Workplace") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         (settings.workplaces + workplace).distinct().forEach { wp ->
                             FilterChip(selected = workplace == wp, onClick = { workplace = wp }, label = { Text(wp) })
                         }
@@ -254,110 +271,144 @@ fun ShiftEditor(
                             selected = false,
                             onClick = { showAddWorkplace = true },
                             leadingIcon = { Icon(Icons.Default.Add, null, Modifier.size(18.dp)) },
-                            label = { Text("New") }
+                            label = { Text("Add new") }
                         )
                     }
                 }
 
-                // ---- Hours
-                AppCard {
-                    FieldLabel("Hours")
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                // ---- Hours (one field + big stepper buttons)
+                Field("Hours worked") {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        FilledTonalIconButton(
+                            onClick = { hoursInput = max(0.0, (hours ?: 0.0) - 0.5).asPlain() },
+                            modifier = Modifier.size(52.dp)
+                        ) { Icon(Icons.Default.Remove, contentDescription = "Half an hour less") }
                         NumberField(
-                            value = regularInput, onChange = { regularInput = it },
-                            label = "Regular hours", suffix = "h",
-                            error = if (attemptedSave) regularError else null,
+                            value = hoursInput, onChange = { hoursInput = it },
+                            label = "Hours", suffix = "h",
+                            error = if (attemptedSave || (hours != null && hoursError != null)) hoursError else null,
                             modifier = Modifier.weight(1f)
                         )
-                        NumberField(
-                            value = overtimeInput, onChange = { overtimeInput = it },
-                            label = "Overtime", suffix = "h",
-                            error = overtimeError,
-                            modifier = Modifier.weight(1f)
-                        )
+                        FilledTonalIconButton(
+                            onClick = { hoursInput = minOf(24.0, (hours ?: 0.0) + 0.5).asPlain() },
+                            modifier = Modifier.size(52.dp)
+                        ) { Icon(Icons.Default.Add, contentDescription = "Half an hour more") }
                     }
                     Spacer(Modifier.height(Spacing.sm))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        listOf(4.0, 6.0, 8.0, 10.0, 12.0).forEach { h ->
-                            FilterChip(
-                                selected = regular == h,
-                                onClick = { regularInput = h.asPlain() },
-                                label = { Text(h.asHours()) }
-                            )
+                        listOf(4.0, 6.0, 8.0, 10.0).forEach { h ->
+                            FilterChip(selected = hours == h, onClick = { hoursInput = h.asPlain() }, label = { Text(h.asHours()) })
                         }
-                    }
-                    Spacer(Modifier.height(Spacing.md))
-                    FieldLabel("Unpaid break")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.Center) {
-                        listOf(0, 15, 30, 45, 60).forEach { m ->
-                            FilterChip(
-                                selected = breakMin == m,
-                                onClick = { breakInput = m.toString() },
-                                label = { Text(if (m == 0) "None" else "${m}m") }
-                            )
-                        }
-                    }
-                    NumberField(
-                        value = breakInput, onChange = { breakInput = it.filter(Char::isDigit) },
-                        label = "Break", suffix = "min", error = breakError,
-                        keyboardType = KeyboardType.Number,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                // ---- Pay
-                AppCard {
-                    FieldLabel("Pay")
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                        SegmentedButton(
-                            selected = wageType == WageType.HOURLY,
-                            onClick = { wageType = WageType.HOURLY },
-                            shape = SegmentedButtonDefaults.itemShape(0, 2)
-                        ) { Text("Hourly") }
-                        SegmentedButton(
-                            selected = wageType == WageType.DAILY,
-                            onClick = { wageType = WageType.DAILY },
-                            shape = SegmentedButtonDefaults.itemShape(1, 2)
-                        ) { Text("Daily") }
-                    }
-                    Spacer(Modifier.height(Spacing.md))
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                        NumberField(
-                            value = rateInput, onChange = { rateInput = it },
-                            label = if (wageType == WageType.HOURLY) "Hourly rate" else "Daily rate",
-                            prefix = currency,
-                            error = if (attemptedSave) rateError else null,
-                            modifier = Modifier.weight(1.4f)
-                        )
-                        NumberField(
-                            value = multiplierInput, onChange = { multiplierInput = it },
-                            label = "OT rate", suffix = "×",
-                            modifier = Modifier.weight(1f)
-                        )
                     }
                 }
 
-                // ---- Details
-                AppCard {
-                    OutlinedTextField(
-                        value = note,
-                        onValueChange = { note = it.take(200) },
-                        label = { Text("Note (optional)") },
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                        shape = ControlShape,
-                        modifier = Modifier.fillMaxWidth()
+                // ---- Break
+                Field("Unpaid break") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        BREAK_PRESETS.forEach { m ->
+                            FilterChip(
+                                selected = !customBreak && breakMin == m,
+                                onClick = { customBreak = false; breakMin = m },
+                                label = { Text(if (m == 0) "No break" else "$m min") }
+                            )
+                        }
+                        FilterChip(selected = customBreak, onClick = { customBreak = true }, label = { Text("Other") })
+                    }
+                    if (customBreak) {
+                        Spacer(Modifier.height(Spacing.sm))
+                        NumberField(
+                            value = breakInput, onChange = { breakInput = it.filter(Char::isDigit).take(3) },
+                            label = "Break length", suffix = "min",
+                            keyboardType = KeyboardType.Number,
+                            error = breakError,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else if (breakError != null) {
+                        Text(breakError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                // ---- Paid
+                AppCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                    SwitchRow(
+                        icon = Icons.Outlined.Payments,
+                        title = "I've been paid for this",
+                        subtitle = if (isPaid) "Marked as paid" else "Marked as unpaid",
+                        checked = isPaid,
+                        onCheckedChange = { isPaid = it }
                     )
-                    Spacer(Modifier.height(Spacing.sm))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                }
+
+                // ---- Note
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it.take(200) },
+                    label = { Text("Note (optional)") },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    shape = ControlShape,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // ---- Pay details (collapsed)
+                AppCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = if (showPayDetails) "Hide pay details" else "Show pay details"
+                            ) { showPayDetails = !showPayDetails }
+                            .semantics { stateDescription = if (showPayDetails) "Expanded" else "Collapsed" }
+                            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Column(Modifier.weight(1f)) {
-                            Text("Paid", style = MaterialTheme.typography.bodyLarge)
+                            Text("Pay details", style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                if (isPaid) "You've received this pay" else "Waiting for payment",
+                                "${CurrencyUtils.formatCurrency(rate ?: 0.0, currency)} per ${if (wageType == WageType.HOURLY) "hour" else "day"} · " +
+                                    "overtime after ${(threshold ?: 0.0).asHours()} at ${(multiplier ?: 0.0).asPlain()}×",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (isPaid) status.success else status.warning
+                                color = if (attemptedSave && payDetailsInvalid) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(checked = isPaid, onCheckedChange = { isPaid = it })
+                        Icon(if (showPayDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
+                    }
+                    AnimatedVisibility(visible = showPayDetails) {
+                        Column(Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.lg)) {
+                            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                                SegmentedButton(
+                                    selected = wageType == WageType.HOURLY,
+                                    onClick = { wageTypeName = WageType.HOURLY.name },
+                                    shape = SegmentedButtonDefaults.itemShape(0, 2)
+                                ) { Text("Per hour") }
+                                SegmentedButton(
+                                    selected = wageType == WageType.DAILY,
+                                    onClick = { wageTypeName = WageType.DAILY.name },
+                                    shape = SegmentedButtonDefaults.itemShape(1, 2)
+                                ) { Text("Per day") }
+                            }
+                            Spacer(Modifier.height(Spacing.md))
+                            NumberField(
+                                value = rateInput, onChange = { rateInput = it },
+                                label = if (wageType == WageType.HOURLY) "Hourly rate" else "Daily rate",
+                                prefix = currency, error = rateError,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(Spacing.sm))
+                            NumberField(
+                                value = thresholdInput, onChange = { thresholdInput = it },
+                                label = "Overtime starts after", suffix = "h", error = thresholdError,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(Spacing.sm))
+                            NumberField(
+                                value = multiplierInput, onChange = { multiplierInput = it },
+                                label = "Overtime pay rate", suffix = "×", error = multiplierError,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
 
@@ -365,7 +416,7 @@ fun ShiftEditor(
                     OutlinedButton(
                         onClick = { confirmDelete = true },
                         shape = ControlShape,
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                     ) {
                         Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.width(Spacing.sm))
@@ -399,6 +450,7 @@ fun ShiftEditor(
             title = "New workplace",
             label = "Workplace name",
             confirmLabel = "Add",
+            validate = { if (it.isBlank()) "Enter a name" else if (it.length > 40) "Use 40 characters or fewer" else null },
             onConfirm = { workplace = it },
             onDismiss = { showAddWorkplace = false }
         )
@@ -406,8 +458,8 @@ fun ShiftEditor(
 
     if (confirmDelete && initialLog != null && onDelete != null) {
         ConfirmDialog(
-            title = "Delete shift?",
-            message = "This shift will be removed from all your devices.",
+            title = "Delete this shift?",
+            message = "It will be removed from all your devices.",
             confirmLabel = "Delete",
             destructive = true,
             onConfirm = { onDelete(initialLog.id) },
@@ -416,14 +468,19 @@ fun ShiftEditor(
     }
 }
 
+private val BREAK_PRESETS = listOf(0, 15, 30, 60)
+
 @Composable
-private fun FieldLabel(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(bottom = Spacing.sm)
-    )
+private fun Field(label: String, content: @Composable () -> Unit) {
+    Column {
+        Text(
+            label,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(bottom = Spacing.sm).semantics { heading() }
+        )
+        content()
+    }
 }
 
 @Composable

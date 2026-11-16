@@ -1,21 +1,17 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# R8 rules for the release build.
+# Room, Firebase, Compose and Credential Manager ship most of their own consumer rules;
+# the entries below cover the gaps.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep line numbers so Play Console crash reports are readable (file names are hidden).
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Credential Manager loads the Play Services provider by reflection.
+-if class androidx.credentials.CredentialManager
+-keep class androidx.credentials.playservices.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Google ID token credential is created from a Bundle by class name.
+-keep class com.google.android.libraries.identity.googleid.** { *; }
+
+# Enum names are persisted (Room converter, Firestore, JSON backups) - never rename them.
+-keepclassmembers enum com.example.data.** { *; }

@@ -20,6 +20,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
+import com.example.util.DateUtils
 
 enum class SyncStatus { SIGNED_OUT, NOT_CONFIGURED, IDLE, SYNCING, SYNCED, WAITING_FOR_NETWORK, PAUSED, ERROR }
 
@@ -90,6 +91,8 @@ class FirestoreSyncManager(
         if (activeUid == uid && shiftsListener != null) return
         stop(keepState = true)
         activeUid = uid
+        // Per-account: a new account must receive this device's settings at least once.
+        lastPushedPayrollAt = 0L
 
         scope.launch {
             // Shifts created while signed out (or under another account) belong to this account now.
@@ -222,6 +225,8 @@ class FirestoreSyncManager(
             val remoteTs = doc.getLong("payrollUpdatedAt") ?: 0L
             if (remoteTs > settingsRepo.current.payrollUpdatedAt) {
                 val remote = parsePayroll(doc) ?: return@addSnapshotListener
+                // Mark as already pushed so applying it doesn't echo a write back to the server.
+                lastPushedPayrollAt = remoteTs
                 settingsRepo.update { it.withPayrollFrom(remote) }
             }
         }
@@ -236,7 +241,7 @@ class FirestoreSyncManager(
         }
     }
 
-    private var lastPushedPayrollAt = 0L
+    @Volatile private var lastPushedPayrollAt = 0L
 
     private suspend fun pushPayrollIfNewer(uid: String, force: Boolean) {
         val s = settingsRepo.current
@@ -292,7 +297,8 @@ class FirestoreSyncManager(
 
     private fun parseShift(doc: DocumentSnapshot): WorkLogEntity? = try {
         val date = doc.getString("date").orEmpty()
-        if (date.isBlank()) null else WorkLogEntity(
+        // A malformed date used to be silently turned into "today" by DateUtils.parseDate.
+        if (!DateUtils.isValidDate(date)) null else WorkLogEntity(
             uuid = doc.getString("uuid") ?: doc.id,
             date = date,
             hoursWorked = doc.getDouble("hoursWorked") ?: 0.0,

@@ -28,8 +28,8 @@ data class StatusColors(
 )
 
 private val LightStatus = StatusColors(
-    success = Emerald600, successContainer = Emerald50,
-    warning = Amber600, warningContainer = Amber50,
+    success = Emerald700, successContainer = Emerald50,
+    warning = Amber700, warningContainer = Amber50,
     overtime = Violet600, overtimeContainer = Violet50,
     danger = Red600, dangerContainer = Red50
 )
@@ -48,7 +48,7 @@ private val LightScheme = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = Indigo50,
     onPrimaryContainer = Indigo900,
-    secondary = Ink600,
+    secondary = Ink700,
     onSecondary = Color.White,
     secondaryContainer = Mist,
     onSecondaryContainer = Ink900,
@@ -61,7 +61,7 @@ private val LightScheme = lightColorScheme(
     surface = Paper,
     onSurface = Ink900,
     surfaceVariant = Mist,
-    onSurfaceVariant = Ink500,
+    onSurfaceVariant = Ink600,
     surfaceContainerLowest = Paper,
     surfaceContainerLow = Color(0xFFF9FAFB),
     surfaceContainer = Paper,

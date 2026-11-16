@@ -2,37 +2,31 @@ package com.example.util
 
 import java.text.NumberFormat
 import java.util.Locale
+import kotlin.math.abs
 
 object CurrencyUtils {
-    fun formatCurrency(amount: Double, currencySymbol: String): String {
-        val isWon = currencySymbol == "₩" || 
-                    currencySymbol.contains("KRW", ignoreCase = true) || 
-                    currencySymbol.contains("WON", ignoreCase = true)
-        
-        val formatter = NumberFormat.getNumberInstance(Locale.US)
-        return if (isWon) {
-            formatter.maximumFractionDigits = 0
-            "$currencySymbol${formatter.format(amount)}"
-        } else {
-            formatter.maximumFractionDigits = 2
-            formatter.minimumFractionDigits = 2
-            "$currencySymbol${formatter.format(amount)}"
-        }
+    /** Currencies that are normally shown without minor units. */
+    private val ZERO_DECIMAL_SYMBOLS = setOf("₩", "¥", "₫")
+    private val ZERO_DECIMAL_CODES = listOf("KRW", "JPY", "WON", "YEN", "VND")
+
+    private fun isZeroDecimal(symbol: String): Boolean {
+        val s = symbol.trim()
+        return s in ZERO_DECIMAL_SYMBOLS || ZERO_DECIMAL_CODES.any { s.contains(it, ignoreCase = true) }
     }
 
     fun formatAmountOnly(amount: Double, currencySymbol: String): String {
-        val isWon = currencySymbol == "₩" || 
-                    currencySymbol.contains("KRW", ignoreCase = true) || 
-                    currencySymbol.contains("WON", ignoreCase = true)
-        
         val formatter = NumberFormat.getNumberInstance(Locale.US)
-        return if (isWon) {
+        if (isZeroDecimal(currencySymbol)) {
             formatter.maximumFractionDigits = 0
-            formatter.format(amount)
         } else {
-            formatter.maximumFractionDigits = 2
             formatter.minimumFractionDigits = 2
-            formatter.format(amount)
+            formatter.maximumFractionDigits = 2
         }
+        return formatter.format(if (abs(amount) < 0.005) 0.0 else amount) // never "-0"
+    }
+
+    fun formatCurrency(amount: Double, currencySymbol: String): String {
+        val sign = if (amount <= -0.005) "-" else ""
+        return "$sign$currencySymbol${formatAmountOnly(abs(amount), currencySymbol)}"
     }
 }

@@ -1,22 +1,39 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Earninglogs
 
-# Run and deploy your AI Studio app
+Track your shifts, hours, overtime and pay. Works fully offline. Signing in is optional and adds backup and sync across devices.
 
-This contains everything you need to run your app locally.
+## Build
 
-View your app in AI Studio: https://ai.studio/apps/41303a1b-c2b0-4c7e-9875-2bc27f2b49c7
+Requirements: JDK 17+ (21 tested) and the Android SDK (platform 36). Android Studio is optional.
 
-## Run Locally
+```bash
+./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+./gradlew testDebugUnitTest    # unit tests
+./gradlew lintRelease          # must report 0 errors
+```
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+Sign-in and sync need `app/google-services.json`. See **SETUP.md**. Without it the app still builds and runs offline.
 
+## Release (Google Play)
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. (Optional) For sign-in & sync, follow **SETUP.md** (google-services.json + Firestore rules).
-5. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-6. Run the app on an emulator or physical device
-7. If you have already published your app in AI Studio, please [request upload key reset](https://support.google.com/googleplay/android-developer/answer/9842756#zippy=%2Crequest-an-upload-key-reset) in Google Play Console.
+1. Create an upload keystore once:
+   `keytool -genkeypair -v -keystore my-upload-key.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000`
+2. Set these environment variables and build the bundle:
+   ```bash
+   export KEYSTORE_PATH=/path/to/my-upload-key.jks STORE_PASSWORD=... KEY_PASSWORD=...   # KEY_ALIAS defaults to "upload"
+   ./gradlew bundleRelease     # app/build/outputs/bundle/release/app-release.aab
+   ```
+3. Add the **release** SHA-1 (from Play Console → App integrity) to Firebase so Google sign-in works in the store build.
+4. Bump `versionCode` / `versionName` in `app/build.gradle.kts` for every upload.
+
+Release builds use R8 (code + resource shrinking). Keep rules are in `app/proguard-rules.pro`.
+
+## Project layout
+
+```
+data/   Room database, repository, Firebase auth, Firestore sync, backup, shift timer
+ui/     ViewModel, theme, shared components, screens (Home, Shifts, Reports, Settings)
+util/   dates, currency formatting, locale-safe number input, biometrics, network status
+```
+
+`applicationId` must stay `com.aistudio.workhourstracker.pxmkzq`, because google-services.json is keyed to it.

@@ -47,6 +47,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.heightIn
 import com.example.data.AuthUserState
 import com.example.data.SyncState
 import com.example.data.SyncStatus
@@ -136,7 +139,7 @@ fun AccountScreen(
                     }
                     if (cloudAvailable) {
                         Spacer(Modifier.height(Spacing.lg))
-                        Button(onClick = onSignIn, shape = ControlShape, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                        Button(onClick = onSignIn, shape = ControlShape, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                             Text("Sign in or create account")
                         }
                     }
@@ -150,13 +153,13 @@ fun AccountScreen(
         }
 
         // ---- Preferences
-        item { GroupLabel("Preferences") }
+        item { GroupLabel("Pay") }
         item {
             AppCard(contentPadding = PaddingValues(0.dp)) {
                 SettingRow(
                     icon = Icons.Outlined.Tune,
                     title = "Pay & workplaces",
-                    subtitle = "Default rate, overtime, currency, goal",
+                    subtitle = "Rate, overtime, currency, goal, tax, workplaces",
                     onClick = onOpenSettings
                 )
             }
@@ -204,7 +207,7 @@ fun AccountScreen(
         }
 
         // ---- Data
-        item { GroupLabel("Data") }
+        item { GroupLabel("Backup") }
         item {
             AppCard(contentPadding = PaddingValues(0.dp)) {
                 SettingRow(Icons.Outlined.FileUpload, "Export backup", subtitle = "Save all shifts as a JSON file", onClick = onExportBackup)
@@ -266,6 +269,7 @@ fun AccountScreen(
             title = if (settings.hasPin) "Change app PIN" else "Create app PIN",
             label = "4–8 digit PIN",
             keyboardType = KeyboardType.NumberPassword,
+            isSecret = true,
             validate = { if (it.length !in 4..8 || !it.all(Char::isDigit)) "Use 4 to 8 digits" else null },
             onConfirm = { onSetPin(it) },
             onDismiss = { showPinDialog = false }
@@ -276,10 +280,10 @@ fun AccountScreen(
 @Composable
 private fun GroupLabel(text: String) {
     Text(
-        text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
+        text,
+        style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = Spacing.xs, top = Spacing.sm)
+        modifier = Modifier.padding(start = Spacing.xs, top = Spacing.md).semantics { heading() }
     )
 }
 

@@ -29,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import com.example.data.UserSettings
 import com.example.data.WorkLogEntity
 import com.example.ui.components.AppCard
@@ -146,7 +148,7 @@ fun ShiftsScreen(
                     verticalAlignment = Alignment.Bottom
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(DateUtils.formatMonthYear("$month-01"), style = MaterialTheme.typography.titleMedium)
+                        Text(DateUtils.formatMonthYear("$month-01"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                         Text(
                             "${monthLogs.size} shifts · ${monthLogs.sumOf { it.netHoursWorked }.asHours()}",
                             style = MaterialTheme.typography.bodySmall,
@@ -162,7 +164,7 @@ fun ShiftsScreen(
             item(key = "group_$month") {
                 AppCard(contentPadding = PaddingValues(vertical = Spacing.xs)) {
                     monthLogs.forEachIndexed { i, log ->
-                        if (i > 0) HorizontalDivider(Modifier.padding(start = 76.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                        if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         ShiftRow(
                             log = log, currency = currency,
                             onClick = { onEditShift(log) },

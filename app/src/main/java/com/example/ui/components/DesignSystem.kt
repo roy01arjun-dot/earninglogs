@@ -13,17 +13,21 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -37,20 +41,23 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.ui.theme.AppTheme
 import com.example.ui.theme.TABULAR
 import java.util.Locale
 
@@ -62,15 +69,21 @@ object Spacing {
     val md = 12.dp
     val lg = 16.dp
     val xl = 24.dp
-    val screen = 20.dp
+    val screen = 16.dp
 }
 
-val CardShape = RoundedCornerShape(20.dp)
-val ControlShape = RoundedCornerShape(14.dp)
+val CardShape = RoundedCornerShape(16.dp)
+val ControlShape = RoundedCornerShape(12.dp)
+
+/** Minimum height for primary buttons. heightIn (not height) so large fonts never get clipped. */
+val ButtonMinHeight = 52.dp
 
 // ---------------------------------------------------------------- format helpers
 
-fun Double.asHours(): String = "${asPlain(2)}h"
+fun Double.asHours(): String = "${asPlain(2)} h"
+
+/** Spoken form for screen readers ("7.5 hours"). */
+fun Double.asSpokenHours(): String = "${asPlain(2)} ${if (this == 1.0) "hour" else "hours"}"
 
 fun Double.asPlain(decimals: Int = 2): String {
     val r = String.format(Locale.US, "%.${decimals}f", this)
@@ -90,7 +103,7 @@ fun AppCard(
 ) {
     val shapeMod = modifier.clip(CardShape)
     Surface(
-        modifier = if (onClick != null) shapeMod.clickable(onClick = onClick) else shapeMod,
+        modifier = if (onClick != null) shapeMod.clickable(role = Role.Button, onClick = onClick) else shapeMod,
         shape = CardShape,
         color = color,
         border = if (border) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null
@@ -99,6 +112,7 @@ fun AppCard(
     }
 }
 
+/** Section title. Marked as a heading so TalkBack users can jump between sections. */
 @Composable
 fun SectionHeader(
     title: String,
@@ -107,31 +121,23 @@ fun SectionHeader(
     onAction: (() -> Unit)? = null
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(top = Spacing.sm, bottom = Spacing.sm),
+        modifier = modifier.fillMaxWidth().padding(top = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             title,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f).semantics { heading() }
         )
         if (actionLabel != null && onAction != null) {
-            TextButton(onClick = onAction, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                Text(actionLabel, style = MaterialTheme.typography.labelLarge)
-            }
+            TextButton(onClick = onAction) { Text(actionLabel) }
         }
     }
 }
 
 @Composable
-fun IconBadge(
-    icon: ImageVector,
-    tint: Color,
-    container: Color,
-    size: Dp = 40.dp,
-    iconSize: Dp = 20.dp
-) {
+fun IconBadge(icon: ImageVector, tint: Color, container: Color, size: Dp = 40.dp, iconSize: Dp = 20.dp) {
     Box(
         modifier = Modifier.size(size).clip(RoundedCornerShape(size * 0.3f)).background(container),
         contentAlignment = Alignment.Center
@@ -156,63 +162,73 @@ fun Avatar(initials: String, size: Dp = 40.dp) {
 
 @Composable
 fun StatusPill(text: String, color: Color, container: Color, modifier: Modifier = Modifier) {
-    Box(
+    Box(modifier = modifier.clip(RoundedCornerShape(50)).background(container).padding(horizontal = 10.dp, vertical = 3.dp)) {
+        Text(text, color = color, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** Paid / unpaid badge. Uses an icon and a word, never colour alone. */
+@Composable
+fun PaidBadge(isPaid: Boolean, modifier: Modifier = Modifier) {
+    val s = AppTheme.status
+    val color = if (isPaid) s.success else s.warning
+    val container = if (isPaid) s.successContainer else s.warningContainer
+    Row(
         modifier = modifier.clip(RoundedCornerShape(50)).background(container)
-            .padding(horizontal = 10.dp, vertical = 3.dp)
+            .padding(start = 6.dp, end = 10.dp, top = 2.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+        Icon(
+            if (isPaid) Icons.Filled.CheckCircle else Icons.Outlined.Schedule,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            if (isPaid) "Paid" else "Unpaid",
+            color = color,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
 @Composable
-fun StatTile(
+fun KeyValueRow(
     label: String,
     value: String,
-    icon: ImageVector,
-    tint: Color,
-    container: Color,
-    modifier: Modifier = Modifier,
-    caption: String? = null
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    bold: Boolean = false
 ) {
-    AppCard(modifier = modifier, contentPadding = PaddingValues(14.dp)) {
-        IconBadge(icon, tint, container, size = 34.dp, iconSize = 18.dp)
-        Spacer(Modifier.height(10.dp))
-        Text(
-            value,
-            style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = TABULAR),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (caption != null) {
-            Text(caption, style = MaterialTheme.typography.labelSmall, color = tint)
-        }
-    }
-}
-
-@Composable
-fun KeyValueRow(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface, bold: Boolean = false) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Merged so a screen reader reads "Paid, ₩120,000" as one item.
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
+        Spacer(Modifier.width(Spacing.sm))
         Text(
             value,
             style = (if (bold) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium)
                 .copy(fontFeatureSettings = TABULAR),
             color = valueColor,
-            fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Medium
+            fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Medium,
+            textAlign = TextAlign.End
         )
     }
 }
 
+/** "‹ November 2026 ›" with a "Go to today" link when away from the current period. */
 @Composable
 fun PeriodSwitcher(
     label: String,
-    sublabel: String? = null,
+    unit: String, // "month" / "week", used for button descriptions
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     showReset: Boolean,
@@ -221,21 +237,19 @@ fun PeriodSwitcher(
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onPrevious) { Icon(Icons.Default.ChevronLeft, contentDescription = "Previous") }
+        IconButton(onClick = onPrevious) { Icon(Icons.Default.ChevronLeft, contentDescription = "Previous $unit") }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+            Text(
+                label,
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.semantics { heading() }
+            )
             if (showReset) {
-                Text(
-                    resetLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onReset).padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            } else if (sublabel != null) {
-                Text(sublabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = onReset) { Text(resetLabel) }
             }
         }
-        IconButton(onClick = onNext) { Icon(Icons.Default.ChevronRight, contentDescription = "Next") }
+        IconButton(onClick = onNext) { Icon(Icons.Default.ChevronRight, contentDescription = "Next $unit") }
     }
 }
 
@@ -255,11 +269,12 @@ fun SettingRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = Spacing.lg, vertical = 14.dp),
+            .heightIn(min = 56.dp)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(Spacing.lg))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = titleColor)
@@ -280,6 +295,7 @@ fun SettingRow(
     }
 }
 
+/** Whole row toggles the switch, and is announced as one "switch" control. */
 @Composable
 fun SwitchRow(
     icon: ImageVector,
@@ -289,13 +305,25 @@ fun SwitchRow(
     subtitle: String? = null,
     enabled: Boolean = true
 ) {
-    SettingRow(
-        icon = icon,
-        title = title,
-        subtitle = subtitle,
-        onClick = if (enabled) ({ onCheckedChange(!checked) }) else null
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+        val alpha = if (enabled) 1f else 0.5f
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha), modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(Spacing.lg))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
+            if (subtitle != null) {
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha))
+            }
+        }
+        Spacer(Modifier.width(Spacing.sm))
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
 
@@ -309,17 +337,11 @@ fun EmptyState(
     onAction: (() -> Unit)? = null
 ) {
     Column(
-        modifier = modifier.fillMaxWidth().padding(vertical = 40.dp, horizontal = Spacing.xl),
+        modifier = modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = Spacing.lg),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        IconBadge(
-            icon,
-            MaterialTheme.colorScheme.primary,
-            MaterialTheme.colorScheme.primaryContainer,
-            size = 64.dp,
-            iconSize = 30.dp
-        )
+        IconBadge(icon, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer, size = 56.dp, iconSize = 28.dp)
         Spacer(Modifier.height(Spacing.lg))
         Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
         Spacer(Modifier.height(Spacing.xs))
@@ -328,11 +350,11 @@ fun EmptyState(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(max = 300.dp)
+            modifier = Modifier.widthIn(max = 320.dp)
         )
         if (actionLabel != null && onAction != null) {
             Spacer(Modifier.height(Spacing.lg))
-            Button(onClick = onAction, shape = ControlShape) { Text(actionLabel) }
+            Button(onClick = onAction, shape = ControlShape, modifier = Modifier.heightIn(min = 48.dp)) { Text(actionLabel) }
         }
     }
 }
@@ -374,12 +396,13 @@ fun TextInputDialog(
     initial: String = "",
     confirmLabel: String = "Save",
     keyboardType: KeyboardType = KeyboardType.Text,
+    isSecret: Boolean = false,
     validate: (String) -> String? = { if (it.isBlank()) "Required" else null },
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var value by remember { mutableStateOf(initial) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var value by rememberSaveable { mutableStateOf(initial) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -391,6 +414,8 @@ fun TextInputDialog(
                 singleLine = true,
                 isError = error != null,
                 supportingText = if (error != null) { { Text(error ?: "") } } else null,
+                visualTransformation = if (isSecret) androidx.compose.ui.text.input.PasswordVisualTransformation()
+                else androidx.compose.ui.text.input.VisualTransformation.None,
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                 shape = ControlShape,
                 modifier = Modifier.fillMaxWidth()

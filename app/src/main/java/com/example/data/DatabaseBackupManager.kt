@@ -8,6 +8,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 import java.time.Instant
+import com.example.util.DateUtils
 
 object DatabaseBackupManager {
 
@@ -94,7 +95,10 @@ object DatabaseBackupManager {
         if (root.has("workLogs")) {
             val logsArray = root.getJSONArray("workLogs")
             for (i in 0 until logsArray.length()) {
-                val item = logsArray.getJSONObject(i)
+                // Skip broken entries instead of rejecting the whole backup file.
+                val item = logsArray.optJSONObject(i) ?: continue
+                val date = item.optString("date", "")
+                if (!DateUtils.isValidDate(date)) continue
                 val wageTypeStr = item.optString("wageType", WageType.HOURLY.name)
                 val wageType = try { WageType.valueOf(wageTypeStr) } catch (e: Exception) { WageType.HOURLY }
 
@@ -103,7 +107,7 @@ object DatabaseBackupManager {
                     WorkLogEntity(
                         id = 0,
                         uuid = uuid,
-                        date = item.getString("date"),
+                        date = date,
                         hoursWorked = item.optDouble("hoursWorked", 8.0),
                         wageType = wageType,
                         wageRate = item.optDouble("wageRate", 25000.0),
@@ -123,10 +127,13 @@ object DatabaseBackupManager {
 
     fun saveAutoBackup(context: Context, jsonString: String) {
         try {
-            val file = File(context.filesDir, AUTO_BACKUP_FILE_NAME)
-            file.writeText(jsonString)
+            // Write to a temp file first so a crash mid-write can't corrupt the last good backup.
+            val tmp = File(context.filesDir, "$AUTO_BACKUP_FILE_NAME.tmp")
+            tmp.writeText(jsonString)
+            val target = File(context.filesDir, AUTO_BACKUP_FILE_NAME)
+            if (!tmp.renameTo(target)) { target.writeText(jsonString); tmp.delete() }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("Backup", "Auto-backup failed", e)
         }
     }
 

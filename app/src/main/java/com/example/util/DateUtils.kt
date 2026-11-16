@@ -24,6 +24,9 @@ object DateUtils {
         }
     }
 
+    fun isValidDate(dateStr: String): Boolean =
+        runCatching { LocalDate.parse(dateStr, DATE_FORMATTER) }.isSuccess
+
     fun formatDate(date: LocalDate): String = date.format(DATE_FORMATTER)
 
     fun formatDisplayDate(dateStr: String): String {

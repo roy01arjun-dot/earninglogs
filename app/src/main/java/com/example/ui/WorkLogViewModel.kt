@@ -104,6 +104,8 @@ data class OverallTotalSummary(
 
 const val ALL_WORKPLACES = "ALL"
 
+data class TimerShiftDraft(val hours: Double, val workplace: String, val date: String)
+
 class WorkLogViewModel(application: Application) : AndroidViewModel(application) {
 
     init { AppContainer.init(application) }
@@ -324,6 +326,7 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
             val targets = filtered(allLogs.value, wp).filter {
                 !it.isPaid && (!monthOnly || YearMonth.from(DateUtils.parseDate(it.date)) == ym)
             }
+            if (targets.isEmpty()) { toast("Nothing left to mark as paid"); return@launch }
             repository.markPaid(targets.map { it.id })
             sync.requestPush()
             toast("${targets.size} shift${if (targets.size == 1) "" else "s"} marked as paid")
@@ -390,11 +393,24 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
     fun resumeShiftTimer() = shiftTimerManager.resumeTimer()
     fun discardShiftTimer() = shiftTimerManager.discardTimer()
 
-    /** Stops the timer and returns (hours, workplace) to pre-fill the shift editor. */
-    fun endShiftTimer(): Pair<Double, String> {
-        val wp = shiftTimerManager.timerState.value.workplace
-        return shiftTimerManager.endTimer() to wp
+    /**
+     * "Finish" on the timer card: pauses (does NOT end) the timer and returns what the editor needs.
+     *
+     * Bug fixed: the old code ended and cleared the timer before the editor opened, so closing the
+     * editor without saving threw the tracked time away. Now the timer is only cleared by
+     * [completeTimerShift] after the shift is actually saved.
+     */
+    fun prepareTimerShift(): TimerShiftDraft {
+        shiftTimerManager.pauseTimer()
+        val state = shiftTimerManager.timerState.value
+        return TimerShiftDraft(
+            hours = shiftTimerManager.currentHours(),
+            workplace = state.workplace,
+            date = DateUtils.formatDate(state.startDate)
+        )
     }
+
+    fun completeTimerShift() { shiftTimerManager.endTimer() }
 
     // ------------------------------------------------------------------ authentication
 

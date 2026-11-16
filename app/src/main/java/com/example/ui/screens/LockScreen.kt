@@ -39,6 +39,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.heightIn
 import androidx.fragment.app.FragmentActivity
 import com.example.ui.components.ControlShape
 import com.example.ui.components.Spacing
@@ -56,7 +60,7 @@ fun LockScreen(
     onUnlocked: () -> Unit,
     verifyPin: (String) -> Boolean
 ) {
-    val activity = LocalContext.current as? FragmentActivity
+    val activity = androidx.activity.compose.LocalActivity.current as? FragmentActivity
     var message by remember { mutableStateOf<String?>(null) }
     var pinMode by remember { mutableStateOf(!biometricStatus.isAvailable && hasPin) }
     var pin by remember { mutableStateOf("") }
@@ -71,14 +75,11 @@ fun LockScreen(
         BiometricAuthManager.promptBiometricAuthentication(
             activity = activity,
             title = "Unlock Earninglogs",
-            subtitle = "Confirm it's you",
-            description = "",
-            negativeButtonText = if (hasPin) "Use app PIN" else "Cancel",
-            allowDeviceCredentials = true,
+            subtitle = "Use your fingerprint, face or phone screen lock",
             onSuccess = { onUnlocked() },
             onError = { code, err ->
                 when (code) {
-                    androidx.biometric.BiometricPrompt.ERROR_NEGATIVE_BUTTON -> if (hasPin) pinMode = true
+                    androidx.biometric.BiometricPrompt.ERROR_NEGATIVE_BUTTON,
                     androidx.biometric.BiometricPrompt.ERROR_USER_CANCELED,
                     androidx.biometric.BiometricPrompt.ERROR_CANCELED -> Unit
                     else -> message = err.toString()
@@ -139,7 +140,7 @@ fun LockScreen(
                     onClick = { submitPin() },
                     enabled = pin.length >= 4,
                     shape = ControlShape,
-                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
                 ) { Text("Unlock") }
                 if (biometricStatus.isAvailable) {
                     TextButton(onClick = { pinMode = false; prompt() }) { Text("Use biometrics instead") }
@@ -148,7 +149,7 @@ fun LockScreen(
                 Button(
                     onClick = { prompt() },
                     shape = ControlShape,
-                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
                 ) {
                     Icon(Icons.Default.Fingerprint, null)
                     Spacer(Modifier.size(Spacing.sm))
@@ -161,7 +162,10 @@ fun LockScreen(
 
             message?.let {
                 Spacer(Modifier.height(Spacing.md))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+                Text(
+                    it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                )
             }
         }
     }
