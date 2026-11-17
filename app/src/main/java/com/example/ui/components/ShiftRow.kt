@@ -32,6 +32,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.WorkLogEntity
+import com.example.ui.theme.AppTheme
 import com.example.ui.theme.TABULAR
 import com.example.util.CurrencyUtils
 import com.example.util.DateUtils
@@ -56,6 +57,7 @@ fun ShiftRow(
     val date = DateUtils.parseDate(log.date)
     var confirmDelete by remember { mutableStateOf(false) }
     val pay = CurrencyUtils.formatCurrency(log.totalPay, currency)
+    val accent = AppTheme.accentFor(log.workplace) // same workplace = same colour everywhere
 
     val spoken = buildString {
         append(DateUtils.formatDisplayDate(log.date)).append(", ")
@@ -87,8 +89,8 @@ fun ShiftRow(
         Column(
             modifier = Modifier
                 .sizeIn(minWidth = 52.dp, minHeight = 52.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clip(RoundedCornerShape(16.dp))
+                .background(accent.container)
                 .padding(horizontal = 6.dp, vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -96,9 +98,9 @@ fun ShiftRow(
             Text(
                 date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = accent.content
             )
-            Text("${date.dayOfMonth}", style = MaterialTheme.typography.titleMedium)
+            Text("${date.dayOfMonth}", style = MaterialTheme.typography.titleMedium, color = accent.content)
         }
 
         Spacer(Modifier.width(Spacing.md))

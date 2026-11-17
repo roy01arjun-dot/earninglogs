@@ -45,6 +45,7 @@ import com.example.ui.components.AppCard
 import com.example.ui.components.ButtonMinHeight
 import com.example.ui.components.ControlShape
 import com.example.ui.components.EmptyState
+import com.example.ui.components.HeroCard
 import com.example.ui.components.KeyValueRow
 import com.example.ui.components.PeriodSwitcher
 import com.example.ui.components.SectionHeader
@@ -117,17 +118,23 @@ fun ReportsScreen(
         }
 
         item {
-            AppCard {
+            HeroCard {
                 Column(Modifier.semantics(mergeDescendants = true) {}) {
-                    Text("Week total", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(CurrencyUtils.formatCurrency(weekly.totalEarnings, currency), style = MaterialTheme.typography.displaySmall)
+                    Text("Week total", style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.86f))
+                    Text(CurrencyUtils.formatCurrency(weekly.totalEarnings, currency), style = MaterialTheme.typography.displaySmall, color = Color.White)
                     Text(
                         "${weekly.totalHours.asHours()} over ${weekly.daysWorked} day${if (weekly.daysWorked == 1) "" else "s"}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Color.White.copy(alpha = 0.86f)
                     )
                 }
-                Spacer(Modifier.height(Spacing.lg))
+            }
+        }
+
+        item {
+            AppCard {
+                SectionHeader("Hours per day", modifier = Modifier.padding(top = 0.dp))
+                Spacer(Modifier.height(Spacing.md))
                 WeekBarChart(weekly)
             }
         }
@@ -172,6 +179,7 @@ fun ReportsScreen(
                             Spacer(Modifier.height(6.dp))
                             LinearProgressIndicator(
                                 progress = { share },
+                                color = AppTheme.accentFor(wp).solid,
                                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)),
                                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
                                 strokeCap = StrokeCap.Round,
@@ -201,7 +209,7 @@ private fun WeekBarChart(weekly: WeeklyPayrollSummary) {
     val maxHours = (byDay.maxOfOrNull { it.first + it.second } ?: 0.0).coerceAtLeast(8.0)
     val primary = MaterialTheme.colorScheme.primary
     val overtime = AppTheme.status.overtime
-    val track = MaterialTheme.colorScheme.surfaceVariant
+    val track = MaterialTheme.colorScheme.surfaceContainerHigh
     val today = LocalDate.now()
 
     val description = days.mapIndexed { i, d ->

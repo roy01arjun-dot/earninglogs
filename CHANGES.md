@@ -54,3 +54,14 @@
 - Biometric unlock on Android 7–9.
 - Firestore rules deployment.
 - TalkBack walkthrough.
+
+# Changes in 1.2.0 – Material redesign
+
+- New "Midnight Violet" Material 3 palette: violet (brand), teal (paid/money), coral (overtime), amber (unpaid), with full light and dark themes. Colours are defined in `ui/theme/Color.kt`.
+- Dashboard: greeting, gradient earnings card with a goal ring and Paid / Not paid chips, three colourful stat tiles (hours, overtime, days worked), and a timer card that changes colour with its state.
+- Each workplace gets its own colour, used on shift date blocks and report bars.
+- Rounder cards (24dp) with soft elevation, round tinted icons on every settings row, pill search bar, tonal month/week arrows.
+- Reports: gradient week total, separate "Hours per day" chart card.
+- Gradient brand mark on sign-in and lock screens; launcher icon recoloured.
+- `ScreenshotTest` renders the real screens to `app/build/screenshots` without a device.
+- All text/background pairs still meet WCAG AA contrast.

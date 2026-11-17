@@ -132,10 +132,10 @@ fun AuthScreen(
 
             // Brand
             Box(
-                Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.primary),
+                Modifier.size(76.dp).clip(RoundedCornerShape(26.dp)).background(AppTheme.heroBrush),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Payments, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(32.dp))
+                Icon(Icons.Default.Payments, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(38.dp))
             }
             Spacer(Modifier.height(Spacing.lg))
             Text("Earninglogs", style = MaterialTheme.typography.headlineMedium)

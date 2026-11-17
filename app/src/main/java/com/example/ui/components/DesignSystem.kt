@@ -2,6 +2,10 @@ package com.example.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +37,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -72,8 +77,8 @@ object Spacing {
     val screen = 16.dp
 }
 
-val CardShape = RoundedCornerShape(16.dp)
-val ControlShape = RoundedCornerShape(12.dp)
+val CardShape = RoundedCornerShape(24.dp)
+val ControlShape = RoundedCornerShape(16.dp)
 
 /** Minimum height for primary buttons. heightIn (not height) so large fonts never get clipped. */
 val ButtonMinHeight = 52.dp
@@ -96,16 +101,19 @@ fun Double.asPlain(decimals: Int = 2): String {
 fun AppCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    color: Color = MaterialTheme.colorScheme.surface,
-    border: Boolean = true,
+    color: Color = cardColor(),
+    border: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(Spacing.lg),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shapeMod = modifier.clip(CardShape)
+    val isLight = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val clickMod = if (onClick != null) Modifier.clip(CardShape).clickable(role = Role.Button, onClick = onClick) else Modifier
     Surface(
-        modifier = if (onClick != null) shapeMod.clickable(role = Role.Button, onClick = onClick) else shapeMod,
+        modifier = modifier.then(clickMod),
         shape = CardShape,
         color = color,
+        // Soft Material elevation in light mode; tonal surfaces carry the hierarchy in dark mode.
+        shadowElevation = if (isLight && color == cardColor()) 1.dp else 0.dp,
         border = if (border) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null
     ) {
         Column(Modifier.padding(contentPadding), content = content)
@@ -113,6 +121,68 @@ fun AppCard(
 }
 
 /** Section title. Marked as a heading so TalkBack users can jump between sections. */
+/** Default card colour: white on the tinted light background, a raised tone in dark mode. */
+@Composable
+fun cardColor(): Color =
+    if (MaterialTheme.colorScheme.background.luminance() > 0.5f) MaterialTheme.colorScheme.surfaceContainerLowest
+    else MaterialTheme.colorScheme.surfaceContainer
+
+/** Gradient brand card (dashboard hero). Text on it should be white. */
+@Composable
+fun HeroCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .shadow(6.dp, CardShape, ambientColor = Color(0xFF3B23B0), spotColor = Color(0xFF3B23B0))
+            .clip(CardShape)
+            .background(AppTheme.heroBrush)
+    ) {
+        // Decorative soft circles for depth.
+        Canvas(Modifier.matchParentSize()) {
+            drawCircle(Color.White.copy(alpha = 0.08f), radius = size.minDimension * 0.55f, center = Offset(size.width * 0.95f, size.height * 0.05f))
+            drawCircle(Color.White.copy(alpha = 0.06f), radius = size.minDimension * 0.35f, center = Offset(size.width * 0.1f, size.height * 1.05f))
+        }
+        Column(Modifier.padding(Spacing.xl), content = content)
+    }
+}
+
+/** Round, tinted icon holder used across the app for a colourful Material look. */
+@Composable
+fun IconCircle(icon: ImageVector, container: Color, content: Color, size: Dp = 44.dp, iconSize: Dp = 22.dp) {
+    Box(
+        Modifier.size(size).clip(CircleShape).background(container),
+        contentAlignment = Alignment.Center
+    ) { Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(iconSize)) }
+}
+
+/** Colourful tonal stat tile ("12.5 h · Hours"). Read as one item by screen readers. */
+@Composable
+fun StatTile(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    container: Color,
+    content: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(modifier = modifier.semantics(mergeDescendants = true) {}, shape = CardShape, color = container) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 16.dp)) {
+            Box(
+                Modifier.size(36.dp).clip(CircleShape).background(content.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) { Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(20.dp)) }
+            Spacer(Modifier.height(Spacing.md))
+            Text(
+                value,
+                style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = TABULAR),
+                color = content,
+                maxLines = 2
+            )
+            Text(label, style = MaterialTheme.typography.labelMedium, color = content)
+        }
+    }
+}
+
 @Composable
 fun SectionHeader(
     title: String,
@@ -171,7 +241,7 @@ fun StatusPill(text: String, color: Color, container: Color, modifier: Modifier 
 @Composable
 fun PaidBadge(isPaid: Boolean, modifier: Modifier = Modifier) {
     val s = AppTheme.status
-    val color = if (isPaid) s.success else s.warning
+    val color = if (isPaid) s.onSuccessContainer else s.onWarningContainer
     val container = if (isPaid) s.successContainer else s.warningContainer
     Row(
         modifier = modifier.clip(RoundedCornerShape(50)).background(container)
@@ -237,11 +307,12 @@ fun PeriodSwitcher(
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onPrevious) { Icon(Icons.Default.ChevronLeft, contentDescription = "Previous $unit") }
+        FilledTonalIconButton(onClick = onPrevious) { Icon(Icons.Default.ChevronLeft, contentDescription = "Previous $unit") }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 label,
                 style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() }
             )
@@ -249,7 +320,7 @@ fun PeriodSwitcher(
                 TextButton(onClick = onReset) { Text(resetLabel) }
             }
         }
-        IconButton(onClick = onNext) { Icon(Icons.Default.ChevronRight, contentDescription = "Next $unit") }
+        FilledTonalIconButton(onClick = onNext) { Icon(Icons.Default.ChevronRight, contentDescription = "Next $unit") }
     }
 }
 
@@ -263,6 +334,7 @@ fun SettingRow(
     subtitle: String? = null,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
+    iconContainer: Color? = null,
     onClick: (() -> Unit)? = null,
     trailing: @Composable (RowScope.() -> Unit)? = null
 ) {
@@ -274,7 +346,15 @@ fun SettingRow(
             .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+        // Every row gets a round tinted icon: teal by default, violet for links, red for destructive.
+        val scheme = MaterialTheme.colorScheme
+        val (badge, badgeContent) = when {
+            iconContainer != null -> iconContainer to tint
+            tint == scheme.error -> scheme.errorContainer to scheme.onErrorContainer
+            tint == scheme.primary -> scheme.primaryContainer to scheme.onPrimaryContainer
+            else -> scheme.secondaryContainer to scheme.onSecondaryContainer
+        }
+        IconCircle(icon, badge, badgeContent, size = 40.dp, iconSize = 20.dp)
         Spacer(Modifier.width(Spacing.lg))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = titleColor)
@@ -303,7 +383,9 @@ fun SwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     subtitle: String? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    iconContainer: Color? = null,
+    iconTint: Color? = null
 ) {
     Row(
         modifier = Modifier
@@ -314,7 +396,12 @@ fun SwitchRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val alpha = if (enabled) 1f else 0.5f
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha), modifier = Modifier.size(24.dp))
+        IconCircle(
+            icon,
+            (iconContainer ?: MaterialTheme.colorScheme.primaryContainer).copy(alpha = alpha),
+            (iconTint ?: MaterialTheme.colorScheme.onPrimaryContainer).copy(alpha = alpha),
+            size = 40.dp, iconSize = 20.dp
+        )
         Spacer(Modifier.width(Spacing.lg))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
@@ -341,7 +428,7 @@ fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        IconBadge(icon, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer, size = 56.dp, iconSize = 28.dp)
+        IconCircle(icon, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, size = 72.dp, iconSize = 34.dp)
         Spacer(Modifier.height(Spacing.lg))
         Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
         Spacer(Modifier.height(Spacing.xs))

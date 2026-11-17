@@ -95,11 +95,11 @@ fun ShiftsScreen(
                     { IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "Clear search") } }
                 } else null,
                 singleLine = true,
-                shape = ControlShape,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -164,7 +164,7 @@ fun ShiftsScreen(
             item(key = "group_$month") {
                 AppCard(contentPadding = PaddingValues(vertical = Spacing.xs)) {
                     monthLogs.forEachIndexed { i, log ->
-                        if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        if (i > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         ShiftRow(
                             log = log, currency = currency,
                             onClick = { onEditShift(log) },

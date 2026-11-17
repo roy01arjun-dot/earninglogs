@@ -41,6 +41,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import com.example.ui.theme.LocalWorkplaces
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -143,7 +145,7 @@ fun WorkLogApp(viewModel: WorkLogViewModel = viewModel()) {
             onClose = null
         )
 
-        else -> MainShell(viewModel)
+        else -> CompositionLocalProvider(LocalWorkplaces provides settings.workplaces) { MainShell(viewModel) }
     }
 }
 
@@ -248,7 +250,7 @@ private fun MainShell(viewModel: WorkLogViewModel) {
                 scrollBehavior = scrollBehavior,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 ),
                 title = { Text(if (tab == Tab.HOME) "Earninglogs" else tab.label, style = MaterialTheme.typography.titleLarge) },
                 actions = {
@@ -259,7 +261,7 @@ private fun MainShell(viewModel: WorkLogViewModel) {
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp) {
                 Tab.entries.forEach { t ->
                     val selected = tab == t
                     NavigationBarItem(
@@ -299,7 +301,8 @@ private fun MainShell(viewModel: WorkLogViewModel) {
                     icon = { Icon(Icons.Default.Add, null) },
                     text = { Text("Log shift") },
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
                 )
             }
         }
@@ -307,6 +310,7 @@ private fun MainShell(viewModel: WorkLogViewModel) {
         // No cross-fade between tabs: simpler, and nothing moves for people sensitive to motion.
         when (tab) {
             Tab.HOME -> HomeScreen(
+                userName = user.displayName.trim().split(" ").firstOrNull().orEmpty(),
                 monthly = monthly,
                 settings = settings,
                 timer = timer,

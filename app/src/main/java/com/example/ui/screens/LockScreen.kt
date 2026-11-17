@@ -105,10 +105,10 @@ fun LockScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Box(
-                Modifier.size(72.dp).clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+                Modifier.size(84.dp).clip(RoundedCornerShape(28.dp)).background(com.example.ui.theme.AppTheme.heroBrush),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(34.dp))
+                Icon(Icons.Default.Lock, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(38.dp))
             }
             Spacer(Modifier.height(Spacing.xl))
             Text("Earninglogs is locked", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
