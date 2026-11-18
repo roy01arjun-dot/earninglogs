@@ -16,3 +16,8 @@
 local.properties
 .env
 debug.keystore
+
+# Firebase config: each developer adds their own (see SETUP.md)
+app/google-services.json
+*.jks
+*.keystore
