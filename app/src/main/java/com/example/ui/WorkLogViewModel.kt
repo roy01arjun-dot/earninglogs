@@ -379,6 +379,16 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // ------------------------------------------------------------------ daily reminder
+
+    fun setDailyReminder(enabled: Boolean) {
+        saveSettings { it.copy(dailyReminderEnabled = enabled) }
+        com.example.data.DailyReminder.sync(getApplication(), enabled)
+        toast(if (enabled) "You'll get a reminder at 11 PM if you haven't logged a shift" else "Daily reminder turned off")
+    }
+
+    fun markNotificationPromptShown() = saveSettings { it.copy(notificationPromptShown = true) }
+
     // ------------------------------------------------------------------ authentication
 
     private fun handleAuth(result: AuthResult, onDone: (Boolean, String?) -> Unit) {

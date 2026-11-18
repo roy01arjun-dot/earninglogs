@@ -24,6 +24,8 @@ import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.LockClock
 import androidx.compose.material.icons.outlined.Password
 import androidx.compose.material.icons.outlined.Sync
@@ -83,6 +85,9 @@ fun AccountScreen(
     onToggleLock: (Boolean) -> Unit,
     onToggleLockOnResume: (Boolean) -> Unit,
     onSetPin: (String?) -> Unit,
+    canNotify: Boolean,
+    onToggleReminder: (Boolean) -> Unit,
+    onOpenNotificationSettings: () -> Unit,
     onOpenSettings: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
@@ -162,6 +167,30 @@ fun AccountScreen(
                     subtitle = "Rate, overtime, currency, goal, tax, workplaces",
                     onClick = onOpenSettings
                 )
+            }
+        }
+
+        // ---- Reminders
+        item { GroupLabel("Reminders") }
+        item {
+            AppCard(contentPadding = PaddingValues(0.dp)) {
+                SwitchRow(
+                    icon = Icons.Outlined.NotificationsActive,
+                    title = "Daily reminder",
+                    subtitle = "Between 11:00 and 11:59 PM, if you haven't logged a shift that day",
+                    checked = settings.dailyReminderEnabled,
+                    onCheckedChange = onToggleReminder
+                )
+                if (settings.dailyReminderEnabled && !canNotify) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SettingRow(
+                        icon = Icons.Outlined.NotificationsOff,
+                        title = "Notifications are turned off",
+                        subtitle = "Tap to allow notifications for Earninglogs, or the reminder can't appear",
+                        tint = MaterialTheme.colorScheme.error,
+                        onClick = onOpenNotificationSettings
+                    )
+                }
             }
         }
 

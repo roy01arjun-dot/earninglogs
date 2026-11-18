@@ -31,6 +31,7 @@ object AppContainer {
             repository = WorkLogRepository(WorkLogDatabase.getDatabase(app), settingsRepo)
             syncManager = FirestoreSyncManager(repository, settingsRepo, appScope)
             initialized = true
+            DailyReminder.sync(app, settingsRepo.current.dailyReminderEnabled)
         }
     }
 }

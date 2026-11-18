@@ -54,7 +54,9 @@ class UserSettingsRepository(context: Context) {
             lastCloudSyncTimestamp = runCatching { prefs.getLong(K_LAST_SYNC, 0L) }.getOrDefault(0L),
             biometricLockEnabled = runCatching { prefs.getBoolean(K_BIOMETRIC, false) }.getOrDefault(false),
             requireBiometricOnResume = runCatching { prefs.getBoolean(K_LOCK_ON_RESUME, true) }.getOrDefault(true),
-            securityPinHash = pinHash
+            securityPinHash = pinHash,
+            dailyReminderEnabled = runCatching { prefs.getBoolean(K_REMINDER, true) }.getOrDefault(true),
+            notificationPromptShown = runCatching { prefs.getBoolean(K_NOTIF_PROMPT, false) }.getOrDefault(false)
         )
     }
 
@@ -115,6 +117,8 @@ class UserSettingsRepository(context: Context) {
             putBoolean(K_BIOMETRIC, s.biometricLockEnabled)
             putBoolean(K_LOCK_ON_RESUME, s.requireBiometricOnResume)
             putString(K_PIN_HASH, s.securityPinHash)
+            putBoolean(K_REMINDER, s.dailyReminderEnabled)
+            putBoolean(K_NOTIF_PROMPT, s.notificationPromptShown)
             // Remove leftovers of the old fake-login implementation.
             remove("is_logged_in"); remove("user_email"); remove("user_name"); remove("auth_provider")
             remove("cloud_backup_count")
@@ -140,6 +144,8 @@ class UserSettingsRepository(context: Context) {
         private const val K_LOCK_ON_RESUME = "require_biometric_on_resume"
         private const val K_PIN_HASH = "security_pin_hash"
         private const val K_LEGACY_PIN = "security_pin"
+        private const val K_REMINDER = "daily_reminder_enabled"
+        private const val K_NOTIF_PROMPT = "notification_prompt_shown"
 
         fun hashPin(pin: String): String {
             val md = MessageDigest.getInstance("SHA-256")

@@ -19,6 +19,8 @@ class WorkLogRepository(
 
     private fun now() = System.currentTimeMillis()
 
+    suspend fun countShiftsOn(date: String): Int = dao.countActiveForDate(date)
+
     suspend fun addLog(log: WorkLogEntity): Long =
         dao.insert(log.copy(id = 0, updatedAt = now(), pendingSync = true, isDeleted = false))
 

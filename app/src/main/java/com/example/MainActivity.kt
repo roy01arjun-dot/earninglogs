@@ -1,6 +1,12 @@
 package com.example
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import com.example.data.DailyReminder
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -82,13 +88,29 @@ import com.example.util.DateUtils
 import java.time.LocalDate
 
 class MainActivity : FragmentActivity() {
+    /** Set when the daily reminder is tapped; the shell opens a new shift form and clears it. */
+    private val openNewShift = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) handleIntent(intent)
         setContent {
             WorkLogTheme {
-                WorkLogApp()
+                WorkLogApp(openNewShift = openNewShift.value, onNewShiftOpened = { openNewShift.value = false })
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(DailyReminder.EXTRA_OPEN_NEW_SHIFT, false) == true) {
+            openNewShift.value = true
+            intent.removeExtra(DailyReminder.EXTRA_OPEN_NEW_SHIFT)
         }
     }
 }
@@ -105,7 +127,11 @@ private const val EDITOR_CLOSED = -1
 private const val EDITOR_NEW = 0
 
 @Composable
-fun WorkLogApp(viewModel: WorkLogViewModel = viewModel()) {
+fun WorkLogApp(
+    openNewShift: Boolean = false,
+    onNewShiftOpened: () -> Unit = {},
+    viewModel: WorkLogViewModel = viewModel()
+) {
     val settings by viewModel.userSettings.collectAsStateWithLifecycle()
     val user by viewModel.authUserState.collectAsStateWithLifecycle()
     val isLocked by viewModel.isAppLocked.collectAsStateWithLifecycle()
@@ -145,13 +171,13 @@ fun WorkLogApp(viewModel: WorkLogViewModel = viewModel()) {
             onClose = null
         )
 
-        else -> CompositionLocalProvider(LocalWorkplaces provides settings.workplaces) { MainShell(viewModel) }
+        else -> CompositionLocalProvider(LocalWorkplaces provides settings.workplaces) { MainShell(viewModel, openNewShift, onNewShiftOpened) }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainShell(viewModel: WorkLogViewModel) {
+private fun MainShell(viewModel: WorkLogViewModel, openNewShift: Boolean, onNewShiftOpened: () -> Unit) {
     val context = LocalContext.current
     val settings by viewModel.userSettings.collectAsStateWithLifecycle()
     val user by viewModel.authUserState.collectAsStateWithLifecycle()
@@ -176,6 +202,32 @@ private fun MainShell(viewModel: WorkLogViewModel) {
 
     fun openEditor(id: Int) { editorId = id }
     fun closeEditor() { editorId = EDITOR_CLOSED }
+
+    // Tapped the 11 PM reminder: go straight to a new shift form.
+    LaunchedEffect(openNewShift) {
+        if (openNewShift) { editorId = EDITOR_NEW; onNewShiftOpened() }
+    }
+
+    // Ask for notification permission once (Android 13+), so the daily reminder can show.
+    var canNotify by remember { mutableStateOf(DailyReminder.canPostNotifications(context)) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        canNotify = granted && DailyReminder.canPostNotifications(context)
+    }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && settings.dailyReminderEnabled &&
+            !settings.notificationPromptShown && !canNotify
+        ) {
+            viewModel.markNotificationPromptShown()
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    // Re-check when coming back from system settings.
+    val shellLifecycle = LocalLifecycleOwner.current
+    DisposableEffect(shellLifecycle) {
+        val observer = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) canNotify = DailyReminder.canPostNotifications(context) }
+        shellLifecycle.lifecycle.addObserver(observer)
+        onDispose { shellLifecycle.lifecycle.removeObserver(observer) }
+    }
 
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
@@ -349,6 +401,19 @@ private fun MainShell(viewModel: WorkLogViewModel) {
                 onToggleLock = viewModel::setBiometricLock,
                 onToggleLockOnResume = viewModel::setLockOnResume,
                 onSetPin = viewModel::setSecurityPin,
+                canNotify = canNotify,
+                onToggleReminder = { on ->
+                    viewModel.setDailyReminder(on)
+                    if (on && !canNotify) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !settings.notificationPromptShown) {
+                            viewModel.markNotificationPromptShown()
+                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            openNotificationSettings(context)
+                        }
+                    }
+                },
+                onOpenNotificationSettings = { openNotificationSettings(context) },
                 onOpenSettings = { showSettings = true },
                 onExportBackup = { exportLauncher.launch("earninglogs-backup-${LocalDate.now()}.json") },
                 onImportBackup = { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
@@ -383,6 +448,13 @@ private fun MainShell(viewModel: WorkLogViewModel) {
             onDismiss = { showExport = false }
         )
     }
+}
+
+private fun openNotificationSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }
 }
 
 @Composable

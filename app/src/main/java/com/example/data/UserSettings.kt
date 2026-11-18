@@ -20,6 +20,10 @@ data class UserSettings(
     val lastCloudSyncTimestamp: Long = 0L,
     val biometricLockEnabled: Boolean = false,
     val requireBiometricOnResume: Boolean = true,
+    /** Daily 11 PM "log your shift" notification. */
+    val dailyReminderEnabled: Boolean = true,
+    /** We ask for notification permission once (Android 13+); don't nag after a "no". */
+    val notificationPromptShown: Boolean = false,
     /** SHA-256 hash of the optional backup PIN. Empty = no PIN. */
     val securityPinHash: String = ""
 ) {

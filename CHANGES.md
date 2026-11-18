@@ -1,6 +1,7 @@
 # Changes in 1.3.0
 
 - Removed the shift timer (clock in / pause / finish card on Home, `ShiftTimerManager`, and the timer pre-fill in the shift editor). Shifts are logged with **Log shift** only. Any timer that was running is cleared on first launch.
+- New **daily reminder**: one notification between 11:00 and 11:59 PM saying "Did you work today?", only if no shift is logged for that day. Tapping it (or its **Log shift** button) opens a new shift form. Turn it on or off in Settings → Reminders. On Android 13+ the app asks once for notification permission; if notifications are off, Settings shows a shortcut to turn them on. The reminder is set again after a reboot, an app update or a clock/time-zone change, and needs no "exact alarm" permission (Android may deliver it a few minutes late; it never fires after 11:59 PM).
 
 # Changes in 1.1.0
 

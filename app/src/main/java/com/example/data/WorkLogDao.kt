@@ -24,6 +24,9 @@ interface WorkLogDao {
     @Query("SELECT * FROM work_logs WHERE id = :id LIMIT 1")
     suspend fun getById(id: Int): WorkLogEntity?
 
+    @Query("SELECT COUNT(*) FROM work_logs WHERE isDeleted = 0 AND date = :date")
+    suspend fun countActiveForDate(date: String): Int
+
     @Query("SELECT * FROM work_logs WHERE pendingSync = 1")
     suspend fun getPendingSync(): List<WorkLogEntity>
 
