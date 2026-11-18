@@ -35,15 +35,24 @@ Sign-in and sync need `app/google-services.json`. See **SETUP.md**. Without it t
 
 ## Release (Google Play)
 
-1. Create an upload keystore once:
-   `keytool -genkeypair -v -keystore my-upload-key.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000`
-2. Set these environment variables and build the bundle:
+1. **Create the upload key once** (asks for a password; nothing secret is committed):
    ```bash
-   export KEYSTORE_PATH=/path/to/my-upload-key.jks STORE_PASSWORD=... KEY_PASSWORD=...   # KEY_ALIAS defaults to "upload"
+   powershell -ExecutionPolicy Bypass -File scripts\create-upload-key.ps1
+   ```
+   It saves the key to `%USERPROFILE%\.earninglogs-signing\upload-key.jks` and writes the gitignored
+   `keystore.properties` that the build reads. On CI, use the `KEYSTORE_PATH`, `STORE_PASSWORD`,
+   `KEY_ALIAS` and `KEY_PASSWORD` environment variables instead. **Back up the key and its password.**
+2. **Build the signed bundle:**
+   ```bash
    ./gradlew bundleRelease     # app/build/outputs/bundle/release/app-release.aab
    ```
-3. Add the **release** SHA-1 (from Play Console → App integrity) to Firebase so Google sign-in works in the store build.
-4. Bump `versionCode` / `versionName` in `app/build.gradle.kts` for every upload.
+   If no key is configured the build still succeeds but the output is unsigned, and Play rejects it.
+   Check with `jarsigner -verify app/build/outputs/bundle/release/app-release.aab` (should print `jar verified`).
+3. **Upload** the `.aab` in Play Console (Testing → Internal testing). Keep *Play App Signing* on.
+4. **Firebase fingerprints** (needed for Google sign-in): add the **upload key** SHA-1
+   (`keytool -list -v -keystore <key> -alias upload`) and, after the first upload, the **app signing key**
+   SHA-1 from Play Console → Test and release → App integrity. Then re-download `google-services.json`.
+5. Bump `versionCode` / `versionName` in `app/build.gradle.kts` for every upload.
 
 Release builds use R8 (code + resource shrinking). Keep rules are in `app/proguard-rules.pro`.
 

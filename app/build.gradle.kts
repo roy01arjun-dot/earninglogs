@@ -1,3 +1,4 @@
+import java.util.Properties
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 
 plugins {
@@ -23,14 +24,22 @@ android {
   }
 
   signingConfigs {
-    // Release keystore comes from env vars (see RELEASE.md). Nothing secret lives in the repo.
-    val releaseKeystore = file(System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks")
-    if (releaseKeystore.exists()) {
+    // Upload key for Google Play. Read from keystore.properties (gitignored, created by
+    // scripts/create-upload-key.ps1), falling back to environment variables for CI.
+    // Nothing secret lives in the repo.
+    val signingProps = Properties().apply {
+      val f = rootProject.file("keystore.properties")
+      if (f.exists()) f.inputStream().use { load(it) }
+    }
+    fun signingValue(prop: String, env: String): String? =
+      signingProps.getProperty(prop)?.takeIf { it.isNotBlank() } ?: System.getenv(env)
+    val releaseStorePath = signingValue("storeFile", "KEYSTORE_PATH")
+    if (releaseStorePath != null && file(releaseStorePath).exists()) {
       create("release") {
-        storeFile = releaseKeystore
-        storePassword = System.getenv("STORE_PASSWORD")
-        keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
-        keyPassword = System.getenv("KEY_PASSWORD")
+        storeFile = file(releaseStorePath)
+        storePassword = signingValue("storePassword", "STORE_PASSWORD")
+        keyAlias = signingValue("keyAlias", "KEY_ALIAS") ?: "upload"
+        keyPassword = signingValue("keyPassword", "KEY_PASSWORD")
       }
     }
     // Shared debug keystore (its SHA-1 is registered in Firebase so Google sign-in works on debug builds).
