@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
-import com.example.data.ShiftTimerState
 import com.example.data.UserSettings
 import com.example.data.WageType
 import com.example.data.WorkLogEntity
@@ -78,12 +77,11 @@ class ScreenshotTest {
     }
 
     @Composable
-    private fun Home(timer: ShiftTimerState) = HomeScreen(
-        userName = "Arjun", monthly = monthly(), settings = settings, timer = timer,
+    private fun Home() = HomeScreen(
+        userName = "Arjun", monthly = monthly(), settings = settings,
         contentPadding = PaddingValues(top = 16.dp),
         onNavigateMonth = {}, onCurrentMonth = {}, onMarkMonthPaid = {}, onAddShift = {}, onEditShift = {},
-        onDeleteShift = {}, onTogglePaid = {}, onSeeAllShifts = {}, onStartTimer = {}, onPauseTimer = {},
-        onResumeTimer = {}, onFinishTimer = {}, onDiscardTimer = {}
+        onDeleteShift = {}, onTogglePaid = {}, onSeeAllShifts = {}
     )
 
     private fun shoot(name: String, dark: Boolean = false, content: @Composable () -> Unit) {
@@ -91,12 +89,9 @@ class ScreenshotTest {
         rule.onRoot().captureRoboImage("build/screenshots/$name.png")
     }
 
-    @Test fun homeLight() = shoot("home_light") { Home(ShiftTimerState()) }
+    @Test fun homeLight() = shoot("home_light") { Home() }
 
-    @Test fun homeDark() = shoot("home_dark", dark = true) {
-        val now = System.currentTimeMillis()
-        Home(ShiftTimerState(isRunning = true, startTimestamp = now - 7_500_000, lastResumeTimestamp = now - 7_500_000, workplace = "Cafe Bloom"))
-    }
+    @Test fun homeDark() = shoot("home_dark", dark = true) { Home() }
 
     @Test fun reportsLight() = shoot("reports_light") {
         val start = DateUtils.getStartOfWeek(today)

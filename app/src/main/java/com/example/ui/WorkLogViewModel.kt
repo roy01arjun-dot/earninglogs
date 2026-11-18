@@ -9,8 +9,6 @@ import com.example.data.AuthResult
 import com.example.data.AuthUserState
 import com.example.data.DatabaseBackupManager
 import com.example.data.FirebaseAuthManager
-import com.example.data.ShiftTimerManager
-import com.example.data.ShiftTimerState
 import com.example.data.SyncState
 import com.example.data.UserSettings
 import com.example.data.UserSettingsRepository
@@ -104,8 +102,6 @@ data class OverallTotalSummary(
 
 const val ALL_WORKPLACES = "ALL"
 
-data class TimerShiftDraft(val hours: Double, val workplace: String, val date: String)
-
 class WorkLogViewModel(application: Application) : AndroidViewModel(application) {
 
     init { AppContainer.init(application) }
@@ -114,7 +110,6 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
     private val settingsRepo = AppContainer.settingsRepo
     private val sync = AppContainer.syncManager
     private val networkMonitor = NetworkConnectivityMonitor(application)
-    private val shiftTimerManager = ShiftTimerManager(application, viewModelScope)
 
     // ------------------------------------------------------------------ state
 
@@ -132,8 +127,6 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
 
     val isOnline: StateFlow<Boolean> = networkMonitor.isOnlineFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, networkMonitor.isCurrentlyOnline())
-
-    val shiftTimerState: StateFlow<ShiftTimerState> = shiftTimerManager.timerState
 
     private val _selectedWeekStart = MutableStateFlow(DateUtils.getStartOfWeek(LocalDate.now()))
     val selectedWeekStart: StateFlow<LocalDate> = _selectedWeekStart.asStateFlow()
@@ -385,32 +378,6 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
             sync.requestPush()
         }
     }
-
-    // ------------------------------------------------------------------ shift timer
-
-    fun startShiftTimer(workplace: String) = shiftTimerManager.startTimer(workplace)
-    fun pauseShiftTimer() = shiftTimerManager.pauseTimer()
-    fun resumeShiftTimer() = shiftTimerManager.resumeTimer()
-    fun discardShiftTimer() = shiftTimerManager.discardTimer()
-
-    /**
-     * "Finish" on the timer card: pauses (does NOT end) the timer and returns what the editor needs.
-     *
-     * Bug fixed: the old code ended and cleared the timer before the editor opened, so closing the
-     * editor without saving threw the tracked time away. Now the timer is only cleared by
-     * [completeTimerShift] after the shift is actually saved.
-     */
-    fun prepareTimerShift(): TimerShiftDraft {
-        shiftTimerManager.pauseTimer()
-        val state = shiftTimerManager.timerState.value
-        return TimerShiftDraft(
-            hours = shiftTimerManager.currentHours(),
-            workplace = state.workplace,
-            date = DateUtils.formatDate(state.startDate)
-        )
-    }
-
-    fun completeTimerShift() { shiftTimerManager.endTimer() }
 
     // ------------------------------------------------------------------ authentication
 

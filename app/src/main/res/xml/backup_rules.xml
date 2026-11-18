@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 11 and lower. Only shifts and settings are backed up; sign-in tokens,
-     the running shift timer and Firestore's cache are left out so a restore on a
+<!-- Android 11 and lower. Only shifts and settings are backed up; sign-in tokens
+     and Firestore's cache are left out so a restore on a
      new phone starts cleanly (the user just signs in again). -->
 <full-backup-content>
     <include domain="database" path="work_hours_database" />

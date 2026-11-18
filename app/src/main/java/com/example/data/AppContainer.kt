@@ -25,6 +25,8 @@ object AppContainer {
             if (initialized) return
             val app = context.applicationContext
             FirebaseAuthManager.initialize(app)
+            // The shift timer was removed in 1.3.0; drop its leftover saved state.
+            app.deleteSharedPreferences("shift_timer_prefs")
             settingsRepo = UserSettingsRepository(app)
             repository = WorkLogRepository(WorkLogDatabase.getDatabase(app), settingsRepo)
             syncManager = FirestoreSyncManager(repository, settingsRepo, appScope)

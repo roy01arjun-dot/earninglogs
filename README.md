@@ -7,13 +7,13 @@ Track your shifts, hours, overtime and pay. Works fully offline. Signing in is o
 <table>
   <tr>
     <th>Dashboard</th>
-    <th>Dashboard (dark, on shift)</th>
+    <th>Dashboard (dark)</th>
     <th>Reports</th>
     <th>Shifts</th>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/home_light.png" width="200" alt="Dashboard: monthly earnings card with goal ring, stat tiles for hours, overtime and days worked, shift timer and recent shifts"></td>
-    <td><img src="docs/screenshots/home_dark.png" width="200" alt="Dashboard in dark mode with the shift timer running"></td>
+    <td><img src="docs/screenshots/home_light.png" width="200" alt="Dashboard: monthly earnings card with goal ring, stat tiles for hours, overtime and days worked, and recent shifts"></td>
+    <td><img src="docs/screenshots/home_dark.png" width="200" alt="Dashboard in dark mode"></td>
     <td><img src="docs/screenshots/reports_light.png" width="200" alt="Reports: weekly total, hours-per-day bar chart, pay breakdown and per-workplace split"></td>
     <td><img src="docs/screenshots/shifts_light.png" width="200" alt="Shifts list with search, paid/unpaid filters and shifts grouped by month"></td>
   </tr>
@@ -59,7 +59,7 @@ Release builds use R8 (code + resource shrinking). Keep rules are in `app/progua
 ## Project layout
 
 ```
-data/   Room database, repository, Firebase auth, Firestore sync, backup, shift timer
+data/   Room database, repository, Firebase auth, Firestore sync, backup
 ui/     ViewModel, theme, shared components, screens (Home, Shifts, Reports, Settings)
 util/   dates, currency formatting, locale-safe number input, biometrics, network status
 ```

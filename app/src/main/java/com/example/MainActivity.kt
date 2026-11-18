@@ -159,7 +159,6 @@ private fun MainShell(viewModel: WorkLogViewModel) {
     val monthly by viewModel.currentMonthlySummary.collectAsStateWithLifecycle()
     val weekly by viewModel.currentWeeklySummary.collectAsStateWithLifecycle()
     val selectedMonth by viewModel.selectedMonth.collectAsStateWithLifecycle()
-    val timer by viewModel.shiftTimerState.collectAsStateWithLifecycle()
     val sync by viewModel.syncState.collectAsStateWithLifecycle()
     val pending by viewModel.pendingSyncCount.collectAsStateWithLifecycle()
     val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
@@ -174,16 +173,9 @@ private fun MainShell(viewModel: WorkLogViewModel) {
 
     // Editor: EDITOR_CLOSED, EDITOR_NEW, or the id of the shift being edited.
     var editorId by rememberSaveable { mutableIntStateOf(EDITOR_CLOSED) }
-    var editorFromTimer by rememberSaveable { mutableStateOf(false) }
-    var prefillHours by rememberSaveable { mutableStateOf<Double?>(null) }
-    var prefillWorkplace by rememberSaveable { mutableStateOf<String?>(null) }
-    var prefillDate by rememberSaveable { mutableStateOf<String?>(null) }
 
-    fun openEditor(id: Int) {
-        editorId = id; editorFromTimer = false
-        prefillHours = null; prefillWorkplace = null; prefillDate = null
-    }
-    fun closeEditor() { editorId = EDITOR_CLOSED; editorFromTimer = false }
+    fun openEditor(id: Int) { editorId = id }
+    fun closeEditor() { editorId = EDITOR_CLOSED }
 
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
@@ -313,7 +305,6 @@ private fun MainShell(viewModel: WorkLogViewModel) {
                 userName = user.displayName.trim().split(" ").firstOrNull().orEmpty(),
                 monthly = monthly,
                 settings = settings,
-                timer = timer,
                 contentPadding = padding,
                 onNavigateMonth = viewModel::navigateMonth,
                 onCurrentMonth = viewModel::jumpToCurrentMonth,
@@ -322,19 +313,7 @@ private fun MainShell(viewModel: WorkLogViewModel) {
                 onEditShift = openEdit,
                 onDeleteShift = viewModel::deleteLog,
                 onTogglePaid = viewModel::togglePaidStatus,
-                onSeeAllShifts = { tab = Tab.SHIFTS },
-                onStartTimer = viewModel::startShiftTimer,
-                onPauseTimer = viewModel::pauseShiftTimer,
-                onResumeTimer = viewModel::resumeShiftTimer,
-                onFinishTimer = {
-                    val draft = viewModel.prepareTimerShift()
-                    editorId = EDITOR_NEW
-                    editorFromTimer = true
-                    prefillHours = draft.hours
-                    prefillWorkplace = draft.workplace
-                    prefillDate = draft.date
-                },
-                onDiscardTimer = viewModel::discardShiftTimer
+                onSeeAllShifts = { tab = Tab.SHIFTS }
             )
             Tab.SHIFTS -> ShiftsScreen(
                 logs = allLogs,
@@ -389,15 +368,8 @@ private fun MainShell(viewModel: WorkLogViewModel) {
             ShiftEditor(
                 initialLog = editing,
                 settings = settings,
-                prefillHours = prefillHours,
-                prefillWorkplace = prefillWorkplace,
-                prefillDate = prefillDate,
-                onDismiss = ::closeEditor, // a paused timer stays on the Home card; nothing is lost
-                onSave = { log ->
-                    viewModel.saveLog(log)
-                    if (editorFromTimer) viewModel.completeTimerShift()
-                    closeEditor()
-                },
+                onDismiss = ::closeEditor,
+                onSave = { log -> viewModel.saveLog(log); closeEditor() },
                 onDelete = { id -> viewModel.deleteLog(id); closeEditor() }
             )
         }

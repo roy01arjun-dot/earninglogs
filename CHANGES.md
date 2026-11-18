@@ -1,3 +1,7 @@
+# Changes in 1.3.0
+
+- Removed the shift timer (clock in / pause / finish card on Home, `ShiftTimerManager`, and the timer pre-fill in the shift editor). Shifts are logged with **Log shift** only. Any timer that was running is cleared on first launch.
+
 # Changes in 1.1.0
 
 ## Bugs fixed

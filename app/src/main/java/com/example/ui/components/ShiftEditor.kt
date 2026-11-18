@@ -98,9 +98,6 @@ import kotlin.math.max
 fun ShiftEditor(
     initialLog: WorkLogEntity?,
     settings: UserSettings,
-    prefillHours: Double? = null,
-    prefillWorkplace: String? = null,
-    prefillDate: String? = null,
     onDismiss: () -> Unit,
     onSave: (WorkLogEntity) -> Unit,
     onDelete: ((Int) -> Unit)? = null
@@ -108,12 +105,12 @@ fun ShiftEditor(
     val isEdit = initialLog != null
     val currency = settings.currencySymbol
 
-    var date by rememberSaveable { mutableStateOf(initialLog?.date ?: prefillDate ?: DateUtils.todayString()) }
+    var date by rememberSaveable { mutableStateOf(initialLog?.date ?: DateUtils.todayString()) }
     var workplace by rememberSaveable {
-        mutableStateOf(initialLog?.workplace ?: prefillWorkplace ?: settings.workplaces.firstOrNull() ?: "Main Workplace")
+        mutableStateOf(initialLog?.workplace ?: settings.workplaces.firstOrNull() ?: "Main Workplace")
     }
     var hoursInput by rememberSaveable {
-        mutableStateOf((initialLog?.hoursWorked ?: prefillHours ?: settings.defaultOvertimeThreshold).asPlain())
+        mutableStateOf((initialLog?.hoursWorked ?: settings.defaultOvertimeThreshold).asPlain())
     }
     var breakMin by rememberSaveable { mutableIntStateOf(initialLog?.breakMinutes ?: 0) }
     var customBreak by rememberSaveable { mutableStateOf(breakMin !in BREAK_PRESETS) }
