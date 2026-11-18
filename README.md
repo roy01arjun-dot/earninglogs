@@ -2,6 +2,25 @@
 
 Track your shifts, hours, overtime and pay. Works fully offline. Signing in is optional and adds backup and sync across devices.
 
+## Screenshots
+
+<table>
+  <tr>
+    <th>Dashboard</th>
+    <th>Dashboard (dark, on shift)</th>
+    <th>Reports</th>
+    <th>Shifts</th>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/home_light.png" width="200" alt="Dashboard: monthly earnings card with goal ring, stat tiles for hours, overtime and days worked, shift timer and recent shifts"></td>
+    <td><img src="docs/screenshots/home_dark.png" width="200" alt="Dashboard in dark mode with the shift timer running"></td>
+    <td><img src="docs/screenshots/reports_light.png" width="200" alt="Reports: weekly total, hours-per-day bar chart, pay breakdown and per-workplace split"></td>
+    <td><img src="docs/screenshots/shifts_light.png" width="200" alt="Shifts list with search, paid/unpaid filters and shifts grouped by month"></td>
+  </tr>
+</table>
+
+Rendered from the real screens with sample data by `ScreenshotTest` (`./gradlew testDebugUnitTest --tests "*ScreenshotTest*"`, output in `app/build/screenshots`).
+
 ## Build
 
 Requirements: JDK 17+ (21 tested) and the Android SDK (platform 36). Android Studio is optional.
